@@ -1,0 +1,45 @@
+Change internals to use my own loop instead of using getopt
+
+Support the following:
+
+Short option '-s'
+Combined short option '-av'
+Long option '--long'
+-- stops processing parameters
+mix switches and arguments (-s argument --another)
+option types (boolean, char, integer, etc.)
+type validation
+automatic help generation
+allow for prefix and postfix text in help output
+must specifically enable help switch and/or choose what help switch is
+allow for passed in message, custom placement (top, bottom or both)
+
+Maybe?
+
+-h shows short help, --help shows long
+allow --{no-}option (e.g., --option or --no-option)
+leave unparsed parameters in $@
+allow for positional parameters
+
+------------------------------------------------------------------------------
+General format of a help screen:
+
+<MESSAGE?>
+
+<PREFIX?>
+
+Usage: <PROGRAM> <list of options>
+
+<OPTIONS>
+
+<POSTFIX?>
+
+<MESSAGE?>
+
+------------------------------------------------------------------------------
+Functions:
+
+parse_params_prefix()
+parse_params_postfix()
+parse_params_program() # Default <PROGRAM> to $(basename $0)
+parse_params_message() # Set placement; top, bottom, both, none
