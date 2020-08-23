@@ -1,0 +1,36 @@
+#!/bin/bash
+
+[[ -z $BATS_VERSION ]] && {
+  echo "This script should only be run from a bats testing environment." >&2
+  exit 1
+}
+
+(($#)) || {
+  echo "Must pass at least the directory to source tools from." >&2
+  exit 99
+}
+
+((NOTE)) && note "$*"
+
+source "$1"/tools
+shift
+
+# Force most recent status code to be 1
+(exit 1)
+(($#)) || die
+
+case "$1" in
+  'mostrecent')
+    shift
+    declare -i number=$1
+    shift
+    (exit "$number")
+    die "$@"
+    ;;
+
+  *)
+    # Force most recent status code to be 1
+    (exit 1)
+    die "$@"
+    ;;
+esac

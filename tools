@@ -2,6 +2,24 @@
 
 #----------------------------------------------------------------------------
 : << POD
+=head2 sourced
+
+Usage: sourced || die "Must be sourced."
+
+Returns true (0) or false (1) depending on if we have been sourced.
+
+=cut
+POD
+
+sourced() { [[ ${FUNCNAME[1]} == 'source' ]]; }
+
+sourced || {
+  echo 'tools must only be sourced'
+  exit 1
+}
+
+#----------------------------------------------------------------------------
+: << POD
 =head2 warn
 
 Usage: warn "message"
@@ -13,7 +31,12 @@ Equivalent to C<echo 'Message' E<gt>&2>
 =cut
 POD
 
-warn() { printf '%s\n' "$*" >&2; }
+warn() {
+  local -a msg
+  msg=("$@")
+  [[ -t 0 ]] || readarray -t -O "${#msg[@]}" msg
+  printf '%s\n' "${msg[@]}" >&2
+}
 
 #----------------------------------------------------------------------------
 : << POD
@@ -41,7 +64,7 @@ die() {
     shift
   fi
 
-  (($#)) && warn "$*"
+  (($#)) && warn "$@"
   exit "${rc:-1}"
 }
 
@@ -63,20 +86,7 @@ Example:
 =cut
 POD
 
-verbose() { ((VERBOSE)) && warn "$*"; }
-
-#----------------------------------------------------------------------------
-: << POD
-=head2 sourced
-
-Usage: sourced || die "Must be sourced."
-
-Returns true (0) or false (1) depending on if we have been sourced.
-
-=cut
-POD
-
-sourced() { [[ ${FUNCNAME[1]} == 'source' ]]; }
+verbose() { ((VERBOSE)) && warn "$@"; }
 
 #----------------------------------------------------------------------------
 : << POD
@@ -100,8 +110,10 @@ POD
 debug() {
   ((DEBUG)) || return 0
 
-  msg="$*"
-  (($#)) || { read -rst 1 msg; }
+  # XXX: Should we use warn instead of printing ouirselves?
+  declare -a msg
+  (($#)) && msg=("$@")
+  (($#)) || { [[ -p /dev/stdin ]] && readarray -t msg; }
 
   local lineno func file trace
   local -a el
@@ -139,10 +151,9 @@ debug() {
     trace+="${el[ix]}"
   done
 
-  printf '[%s%s]%s %s\n' "$interactive" "$loginshell" "$trace" "$msg" >&2
+  printf -v prefix '[%s%s]%s' "$interactive" "$loginshell" "$trace"
+
+  for m in "${msg[@]}"; do
+    printf '%s %s\n' "$prefix" "$m" >&2
+  done
 }
-
-#----------------------------------------------------------------------------
-# Force a true value on end, so 'source tool || exit 1' will work more reliably.
-
-true

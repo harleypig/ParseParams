@@ -29,13 +29,3 @@ ParseParams='./ParseParams'
   PATH="${PATH/$MOCKPATH:/}"
   unlink "$MOCKCMD"
 }
-
-#-----------------------------------------------------------------------------
-@test 'fail when no definitions passed' {
-  source "$ParseParams"
-
-  run parse_params
-
-  assert_failure
-  assert_output 'No definitions were passed to parse_params.'
-}

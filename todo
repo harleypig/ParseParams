@@ -1,5 +1,7 @@
 Change internals to use my own loop instead of using getopt
 
+Steal ideas from https://github.com/ko1nksm/getoptions
+
 Support the following:
 
 Short option '-s'

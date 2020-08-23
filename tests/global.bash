@@ -10,6 +10,11 @@ note() {
 }
 
 #-----------------------------------------------------------------------------
+# Generate random string
+
+random_string() { tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1; }
+
+#-----------------------------------------------------------------------------
 # Load helpers
 
 HELPERS_DIR="$HOME/.bats-helpers"
@@ -20,7 +25,7 @@ HELPERS_DIR="$HOME/.bats-helpers"
 
 readarray -t HELPERS < <(find "$HOME"/.bats-helpers/*/src -iname '*.bash')
 
-[[ "${#HELPERS[@]}" -eq 0 ]] && {
+[[ ${#HELPERS[@]} -eq 0 ]] && {
   note "No helpers found, failing all tests."
   exit 1
 }

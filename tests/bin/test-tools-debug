@@ -1,0 +1,18 @@
+#!/bin/bash
+
+[[ -z $BATS_VERSION ]] && {
+  echo "This script should only be run from a bats testing environment." >&2
+  exit 1
+}
+
+(($#)) || {
+  echo "Must pass at least the directory to source tools from." >&2
+  exit 99
+}
+
+((NOTE)) && note "$*"
+
+source "$1"/tools
+shift
+
+debug "$@" > /dev/null
