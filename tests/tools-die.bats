@@ -11,34 +11,23 @@ testfile="$sourcedir/tools"
 ##############################################################################
 # Tests for die
 
+#ok 8 warn < file
+#ok 10 warn <<< $variable
+
 #-----------------------------------------------------------------------------
-@test 'die returns 1' {
-  run "$BATS_TEST_DIRNAME/bin/test-tools-die" "$sourcedir"
+@test 'die exits 1' {
+  source "$testfile"
+  run die
   assert_failure 1
   assert_output ''
 }
 
 #-----------------------------------------------------------------------------
-@test 'die returns 1 with msg' {
-  msg="$(random_string)"
-  run "$BATS_TEST_DIRNAME/bin/test-tools-die" "$sourcedir" "$msg"
-  assert_failure 1
-  assert_output "$msg"
-}
-
-#-----------------------------------------------------------------------------
-@test 'die returns 0' {
-  run "$BATS_TEST_DIRNAME/bin/test-tools-die" "$sourcedir" 0
+@test 'die exits 0' {
+  source "$testfile"
+  run die 0
   assert_success
   assert_output ''
-}
-
-#-----------------------------------------------------------------------------
-@test 'die returns 0 with msg' {
-  msg="$(random_string)"
-  run "$BATS_TEST_DIRNAME/bin/test-tools-die" "$sourcedir" 0 "$msg"
-  assert_success
-  assert_output "$msg"
 }
 
 #-----------------------------------------------------------------------------
@@ -50,20 +39,60 @@ testfile="$sourcedir/tools"
 }
 
 #-----------------------------------------------------------------------------
-@test 'die returns random' {
-  local -i number=$((2+RANDOM%10))
-  run "$BATS_TEST_DIRNAME/bin/test-tools-die" "$sourcedir" $number
-  fail=$((number++))
-  assert_failure $fail
+@test 'die returns nothing on stdout' {
+  source "$testfile"
+  run $(die 'nada-die-parms' 2> /dev/null)
   assert_output ''
 }
 
 #-----------------------------------------------------------------------------
-@test 'die returns random with msg' {
-  local -i number=$((2+RANDOM%10))
+@test 'die prints to stderr' {
+  source "$testfile"
   msg="$(random_string)"
-  run "$BATS_TEST_DIRNAME/bin/test-tools-die" "$sourcedir" $number "$msg"
-  fail=$((number++))
-  assert_failure $fail
+  # Move stdout to null and stderr to stdout so we can capture only stderr.
+  run echo $(die "$msg" 3>&1 1> /dev/null 2>&3-)
+  assert_output "$msg"
+}
+
+#-----------------------------------------------------------------------------
+@test 'die multi parms' {
+  msg1=$(random_string)
+  msg2=$(random_string)
+  msg3=$(random_string)
+
+  printf -v expected_output '%s\n' "$msg1" "$msg2"
+  expected_output+="$msg3"
+
+  run "$BATS_TEST_DIRNAME/bin/test-tools-die" "$sourcedir" "$msg1" "$msg2" "$msg3"
+
+  assert_failure
+  assert_output "$expected_output"
+}
+
+#-----------------------------------------------------------------------------
+@test 'echo msg | die' {
+  msg=$(random_string)
+  run "$BATS_TEST_DIRNAME/bin/test-tools-die" "$sourcedir" 'pipe' "$msg"
+  assert_failure
+  assert_output "$msg"
+}
+
+#-----------------------------------------------------------------------------
+@test 'die < file' {
+  source "$testfile"
+  msg=$(random_string)
+  file=$(mktemp -p "$BATS_RUN_TMPDIR")
+  echo "$msg" > "$file"
+  run die < "$file"
+  assert_failure
+  assert_output "$msg"
+}
+
+#-----------------------------------------------------------------------------
+@test 'die <<< \$variable' {
+  source "$testfile"
+  msg=$(random_string)
+  run die <<< "$msg"
+  assert_failure
   assert_output "$msg"
 }

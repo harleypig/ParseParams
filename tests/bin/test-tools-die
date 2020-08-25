@@ -28,6 +28,11 @@ case "$1" in
     die "$@"
     ;;
 
+  'pipe')
+    shift
+    echo "$@" | die
+    ;;
+
   *)
     # Force most recent status code to be 1
     (exit 1)

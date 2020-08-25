@@ -12,8 +12,6 @@ source "$testfile"
 ##############################################################################
 # Tests for warn
 
-# warn <<< $variable
-
 #-----------------------------------------------------------------------------
 @test 'warn returns 0' {
   run warn
@@ -94,5 +92,12 @@ source "$testfile"
   echo "$msg3" >> "$file"
 
   run warn < "$file"
+  assert_output "$msg"
+}
+
+#-----------------------------------------------------------------------------
+@test 'warn <<< \$variable' {
+  msg=$(random_string)
+  run warn <<< "$msg"
   assert_output "$msg"
 }
