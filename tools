@@ -57,6 +57,10 @@ POD
 die() {
   # Grab most recent return code
   local rc=$?
+
+  # Only exit 0 if explicitly used in $@.
+  [[ $rc -eq 0 ]] && rc=1
+
   local int_rx='[[:digit:]]+'
 
   if [[ $1 =~ ^$int_rx$ ]]; then
@@ -64,7 +68,10 @@ die() {
     shift
   fi
 
-  (($#)) && warn "$@"
+  msg=("$@")
+  [[ -t 0 ]] || readarray -t -O "${#msg[@]}" msg
+  [[ ${#msg[@]} -ne 0 ]] && printf '%s\n' "${msg[@]}" >&2
+
   exit "${rc:-1}"
 }
 
@@ -86,7 +93,13 @@ Example:
 =cut
 POD
 
-verbose() { ((VERBOSE)) && warn "$@"; }
+verbose() {
+  ((VERBOSE)) || return 0
+  local -a msg
+  msg=("$@")
+  [[ -t 0 ]] || readarray -t -O "${#msg[@]}" msg
+  printf '%s\n' "${msg[@]}" >&2
+}
 
 #----------------------------------------------------------------------------
 : << POD
@@ -109,11 +122,14 @@ POD
 
 debug() {
   ((DEBUG)) || return 0
+  local -a msg
+  msg=("$@")
+  [[ -t 0 ]] || readarray -t -O "${#msg[@]}" msg
 
-  # XXX: Should we use warn instead of printing ouirselves?
-  declare -a msg
-  (($#)) && msg=("$@")
-  (($#)) || { [[ -p /dev/stdin ]] && readarray -t msg; }
+  # Assume if we're called with nothing, then we want at least one empty line
+  # is wanted.
+
+  [[ "${#msg[@]}" -eq 0 ]] && msg=('')
 
   local lineno func file trace
   local -a el

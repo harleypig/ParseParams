@@ -12,8 +12,12 @@ sourced || die 'ParseParams must only be sourced'
 #----------------------------------------------------------------------------
 # Check version of getopt.
 
-getopt -T &> /dev/null
-[[ $? -eq 4 ]] || die "Unsupported version of getopt!"
+#getopt -T &> /dev/null
+#[[ $? -eq 4 ]] || die "Unsupported version of getopt!"
+
+# We do it this funky way to allow bats test to be written.
+gos=$(getopt -T /dev/null; echo $?)
+[[ $gos -eq 4 ]] || die "Unsupported version of getopt!"
 
 # Turn on extended globbing
 shopt -s extglob
@@ -616,3 +620,5 @@ $VALIDATE_STRING
   debug "$(echo "$EVAL_STRING" | shfmt -s -i 2 -bn -ci -sr)"
   printf '%s' "$EVAL_STRING"
 }
+
+return 0
