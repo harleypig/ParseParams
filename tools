@@ -173,3 +173,48 @@ debug() {
     printf '%s %s\n' "$prefix" "$m" >&2
   done
 }
+
+#----------------------------------------------------------------------------
+: << POD
+=head2 is_executable
+
+Returns 0 for an application that is on the path and is executable, otherwise
+returns 1.
+
+=cut
+POD
+
+is_executable() { [[ -x "$(command -v "$1" 2> /dev/null)" ]]; }
+
+#----------------------------------------------------------------------------
+: << POD
+=head2 string
+
+Returns 0 for a non-empty variable, 1 for an empty variable.
+
+=cut
+POD
+
+is_string() { [[ -n $1 ]]; }
+
+#----------------------------------------------------------------------------
+: << POD
+=head2 char
+
+Returns 0 if the value passed is a single character, otherwise returns 1.
+
+=cut
+POD
+
+is_char() { [[ ${#1} -eq 1 ]]; }
+
+#----------------------------------------------------------------------------
+: << POD
+=head2 integer
+
+Checks that a value is a positive integer (a number without a decimal).
+
+=cut
+POD
+
+is_integer() { [[ -n "$1" ]] && [[ $1 != *[!0-9]* ]]; }

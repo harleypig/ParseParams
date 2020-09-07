@@ -40,14 +40,14 @@ unset HELPERS_DIR HELPERS
 # Use test_setup and test_setup_file for your own test file specific needs.
 
 test_setup_file() { return 0; }
-#test_setup() { return 0; }
+test_setup() { return 0; }
 
 setup_file() {
   note "--- Test file: $(basename "$BATS_TEST_FILENAME")"
   test_setup_file
 }
 
-#setup() {
-#  # setup tempdir's
-#  test_setup
-#}
+setup() {
+  # setup tempdir's
+  test_setup
+}
