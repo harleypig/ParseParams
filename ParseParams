@@ -2,23 +2,25 @@
 
 #source utility
 source ./tools
+sourced || die 'ParseParams must only be sourced'
 
 #############################################################################
-# Are we being sourced?
-
-#[[ ${BASH_SOURCE[0]} == "$0" ]] && die "$(basename "$0") must only be sourced."
-sourced || die 'ParseParams must only be sourced'
+# Sanity checks
 
 #----------------------------------------------------------------------------
 # Check version of getopt.
 
-#getopt -T &> /dev/null
-#[[ $? -eq 4 ]] || die "Unsupported version of getopt!"
+# Wrapping this in a function allows us to test this with bats.
 
-# We do it this funky way to allow bats test to be written.
-gos=$(getopt -T /dev/null; echo $?)
-[[ $gos -eq 4 ]] || die "Unsupported version of getopt!"
+verify_getopt() {
+  getopt -T &> /dev/null
+  [[ $? -eq 4 ]] || die 1 "Unsupported version of getopt!"
+}
 
+# Why is this killing tests?!
+#verify_getopt
+
+#----------------------------------------------------------------------------
 # Turn on extended globbing
 shopt -s extglob
 
@@ -39,7 +41,7 @@ ParseParams - Parse command line or function parameters.
   b|bank,number,BankNumber
   c,boolean
   '
-  parse_params "\$PARM_DEF" "\$@" || show_usage
+  parse_params "$PARM_DEF" "$@"
 
 =head1 OPTIONS
 
@@ -62,147 +64,57 @@ calling script is exited.
 
 =head1 TYPES
 
-Valid types are detailed below.
+=over
 
-=cut
-POD
+=item boolean
 
-#############################################################################
-# Type documentation
+This creates a switch parameter. The variable is set to 1 if it is not passed
+on the command line, otherwise it is set to 0.
 
-# To add a new type, first add the name to be used to the TYPES array, then
-# add the documentation and function definition in this section.
+=item string
 
-# The function name should be 'is_NEWTYPE' where 'NEWTYPE' is the name of
-# the type you are creating. E.g. type 'string' is 'is_string'.
+This just checks for a non-empty value.
 
-# A valid type function should return a 0 for a successful check and a 1 for
-# a failed check.
+=item char
 
-declare -a TYPES=(
-  'boolean'
-  'char'
-  'date'
-  'filename'
-  'integer'
-  'string'
-  'varname'
-)
+Requires a single character for the value.
 
-#----------------------------------------------------------------------------
-: << POD
-=head2 string
+=item integer
 
-Simply checks for a non-empty value.
+Requires the value be a positive integer.
 
-=cut
-POD
+=back
 
-function is_string() {
-  [[ -z $1 ]] && return 1
-  return 0
-}
+=head2
 
-#----------------------------------------------------------------------------
-: << POD
-=head2 filename
+You can add your own type checking by adding a function or application name to
+the TYPES array.
 
-Checks if the value is a valid filename and if it exists is it readable, or if
-it does not exist can we create it. If it is readable or creatable, returns 0.
-Otherwise returns 1.
+  mycheck() { true; }
 
-This type expects the path to the filename to exist. If it does not, it will
-fail (return 1).
+  source ParseParams
 
-If you want to allow the caller to provide just the base filename and you will
-build the path, don't use this type. Just use the C<string> type and call
-C<qualify_filename> (from the utility library) after you have built the
-string.
+  TYPES['mytype']='mycheck'
 
-=cut
-POD
+  parse_params "definition string" "parameters"
 
-function is_filename() {
-  # qualify_filename prints a fully qualified path, we want to ignore that
-  # here (but not any error messages).
-  qualify_filename "$1" > /dev/null || return 1
-  return 0
-}
+C<mycheck> must return 0 for a passing check, or a 1 for a failed check. Any
+output is ignored.
 
-#----------------------------------------------------------------------------
-: << POD
-=head2 char
+=head1 DEFINITION STRING
 
-Checks for a single character value.
+Usage:
 
-=cut
-POD
+  source ParseParams
 
-# is_char is in the utility script
+  PARM_DEF='
+  a|app,string,AppName,,required
+  b|bank,number,BankNumber
+  c,boolean
+  '
+  parse_params "$PARM_DEF" "$@"
 
-#----------------------------------------------------------------------------
-: << POD
-=head2 integer
-
-Checks that a value is a positive integer (a number without a decimal).
-
-=cut
-POD
-
-# is_integer is in the utility script
-
-#----------------------------------------------------------------------------
-: << POD
-=head2 boolean
-
-This type does not check for a value. The boolean type forces the variable to
-be either a 0 (true) or 1 (false).
-
-See the C<parse_params> section for more information.
-
-=cut
-POD
-
-# boolean is managed in the _build_parms and _build_eval_string functions.
-
-#----------------------------------------------------------------------------
-: << POD
-=head2 date
-
-Checks that a value appears to be a valid date and returns either a 0 (true)
-if the C<date> program can parse the value correctly or 1 (false) if not.
-
-=cut
-POD
-
-# is_date is managed in the _build_parms and _build_eval_string functions.
-
-#----------------------------------------------------------------------------
-: << POD
-=head2 varname
-
-Checks that a value appears to be a valid shell variable name and returns
-either a 0 (true) if it does, or 1 (false) if not.
-
-=cut
-POD
-
-valid_varname() {
-  var_rx='[_[:alpha:]]*([_[:alnum:]])'
-  [[ $1 =~ ^$var_rx$ ]]
-}
-
-#############################################################################
-# Main function
-
-: << POD
-=head1 FUNCTIONS
-
-=head2 parse_params
-
-Expects the first parameter to be a format string that defines options and
-types so that parameters can be validated, to a minimal degree. The developer
-can validate parameters for their specific needs.
+XXX FIX ME!!!
 
 The variable name defined by the definition line will be set to the matching
 input value.
@@ -284,6 +196,44 @@ I.e., C<required>, C<REQUIRED> and C<Required> are identical.
 If B<REQUIRED> is C<required> the parameter must be included on the command
 line.
 
+
+=cut
+POD
+
+#############################################################################
+# Globals
+
+# The character to be used for a position definition. This should be
+# a 1 character length string.
+declare POS_DEF='#' # If you change this make sure you update the documentation!
+declare SHORTOPTS LONGOPTS DEF_LINES
+declare -i ERR=0
+declare -a POS_LINES
+declare -A TYPES
+
+# Boolean types are handled as a special case.
+
+TYPES['boolean']=''
+
+# These functions are defined in the utility library loaded at the top of this
+# script.
+
+TYPES['string']='is_string'
+TYPES['char']='is_char'
+TYPES['integer']='is_integer'
+
+#############################################################################
+# Main function
+
+: << POD
+=head1 FUNCTIONS
+
+=head2 parse_params
+
+Expects the first parameter to be a format string that defines options and
+types so that parameters can be validated, to a minimal degree. The developer
+can validate parameters for their specific needs.
+
 =cut
 POD
 
@@ -291,10 +241,6 @@ POD
 
 function parse_params() {
   [[ $# -eq 0 ]] && die 'No definitions were passed to parse_params.'
-
-  local SHORTOPTS LONGOPTS DEF_LINES
-  local -a POS_LINES
-  local ERR=0
 
   _build_parms_info "$1"
   shift
@@ -318,32 +264,77 @@ function parse_params() {
 : << POD
 =head1 INTERNAL FUNCTIONS
 
-These functions should not be used unless you know exactly what you are doing.
+These functions should not be called unless you know exactly what you are
+doing.
 
 =cut
 POD
 
 #----------------------------------------------------------------------------
 : << POD
-=head2 _check_type
+=head2 _valid_varname
 
-Checks to see if the value of a variable is a valid type.
+=over
 
-If the value of the variable evaluates to C<null>, then C<_check_type> will
-return 0.
+=item usage: _valid_varname 'varname'
+
+=back
+
+Checks if varname is a valid variable name. Returns 0 if it is, 1 if it's not.
+
+A valid variable name starts with an underscore and an alpha character. The
+remaining characters can be an underscore or a alphanumeric character.
 
 =cut
 POD
 
-function _check_type() {
-  [[ $# -gt 0 ]] || die "must pass variable name and type name to _check_type"
-  [[ -z ${!1} ]] && return 0
-  [[ " ${TYPES[*]} " == *" $2 "* ]] || die "Invalid type ($2) passed to _check_type"
+_valid_varname() {
+  # If varname is a single character then it can't be an underscore '_'.
+  [[ $1 == [A-Za-z] ]] && return 0
+  [[ $1 == [A-Za-z_][A-Za-z0-9_]* ]] && return 0
+  return 1
+}
 
-  debug "$(printf '%s' "is_$2 ${!1}")"
+#----------------------------------------------------------------------------
+: << POD
+=head2 _check_type
+
+=over
+
+=item usage: _check_type typename variablename
+
+=back
+
+Checks the value of a variable with the type check in the TYPES array.
+
+=cut
+POD
+
+# XXX: Should we be returning > 1 instead of dying here?
+
+function _check_type() {
+  [[ $# -eq 2 ]] || die 'must pass variable name and type name to _check_type'
+  [[ -z $1 || -z $2 ]] && die 'cannot pass empty values to _check_type'
+
+  local -l type="$1"
+  local variable="$2"
+
+  [[ $type == 'boolean' ]] && die "Invalid type ($type is handled differently)"
+
+  # This fails if $type doesn't exist or is null (TYPES[$type]=) or empty
+  # (TYPES[$type]='').
+
+  [[ -n ${TYPES[$type]} || -z ${TYPES[$type]-foo} ]] \
+    || die "Invalid type ($type), it must exist and not be null or empty"
+
+  local func="${TYPES[$type]}"
+
+  is_executable "$func" \
+    || die "$func does not appear to be a command or function"
+
   # We *want* the output of the $(call) to be executed!
   # shellcheck disable=SC2091
-  $("is_$2" "${!1}")
+  $("$func" "${!variable}")
 }
 
 #----------------------------------------------------------------------------
@@ -357,7 +348,10 @@ a stricter, normalized string for use in C<_build_eval_string> below.
 POD
 
 # Expects a definition string to be passed as a single parameter.
-# Sets DEF_LINES to normalized definition lines.
+
+# Sets DEF_LINES and POS_LINES (if any are included) to normalized definition
+# lines.
+
 # Sets SHORTOPTS and LONGOPTS to required values.
 
 function _build_parms_info() {
@@ -366,84 +360,78 @@ function _build_parms_info() {
   local OPTION VAR DEFAULT
   local -l TYPE REQ
 
-  # Is this a positional definition?
-  local POS_DEF='#' # If you change this make sure you update the documentation!
-
   IFS=$'\n' readarray -t def_lines <<< "$1"
 
   for BPI_IX in "${!def_lines[@]}"; do
     [[ -z ${def_lines[BPI_IX]} ]] && continue
 
     line="${def_lines[BPI_IX]}"
-    debug "line $BPI_IX: $line"
+    errline="on definition line $BPI_IX ($line)"
+    debug "$errline"
 
+    # The definition line is separated by commas
     IFS=', ' read -r OPTION TYPE VAR DEFAULT REQ <<< "$line"
-    #debug "OPTION: $OPTION ::: TYPE: $TYPE ::: VAR: $VAR ::: DEFAULT: $DEFAULT ::: REQ: $REQ <"
+
+    # The options can have one or more choices
+    IFS='|' read -ra OPTIONS <<< "$OPTION"
+
+    debug "OPTIONS: ${OPTIONS[*]}"
+    debug "TYPE: $TYPE"
+    debug "VAR: $VAR"
+    debug "DEFAULT: $DEFAULT"
+    debug "REQ: $REQ"
 
     #------------------------------------------------------------------------
     [[ -z $REQ ]] && REQ='optional'
 
-    [[ $REQ =~ required|optional ]] || {
-      warn "Unknown field value ($REQ) on line $BPI_IX (only 'required', 'optional' or null is valid)."
-      ((ERR++))
-      continue
-    }
+    [[ $REQ =~ required|optional ]] \
+      || die "Only 'required', 'optional' or null is valid $errline."
 
     #------------------------------------------------------------------------
-    [[ " ${TYPES[*]} " == *" $TYPE "* ]] || {
-      warn "Unknown type ($TYPE) on line $BPI_IX ($line)."
-      ((ERR++))
-      continue
-    }
+    # Default to string if not included
+    [[ -z $TYPE ]] && TYPE='string'
+
+    [[ -n ${TYPES[$TYPE]} || -z ${TYPES[$TYPE]-foo} ]] \
+      || die "Invalid type ($TYPE) $errline."
 
     [[ $TYPE == 'boolean' ]] && REQ='optional'
 
     #------------------------------------------------------------------------
-    [[ -z $VAR ]] && {
-      warn "Variable name is required on line $BPI_IX ($line)."
-      ((ERR++))
-      continue
-    }
+    [[ $OPTION == *$POS_DEF* ]] && [[ ${#OPTIONS[@]} -gt 1 ]] \
+      && die "'$POS_DEF' must be the only option $errline."
 
-    valid_varname "$VAR" || {
-      warn "Invalid variable name ($VAR) on line $BPI_IX ($line)."
-      ((ERR++))
-      continue
-    }
-
-    #------------------------------------------------------------------------
-    if [[ $subopt == "$POS_DEF" ]]; then
+    if [[ $OPTION == "$POS_DEF" ]]; then
+      [[ -z $VAR ]] && die "Variable name is required when using position $errline."
       POS_LINES+=("$TYPE,$VAR")
       continue
+
+    else
+      # Default variable name to last option if not included.
+      [[ -z $VAR ]] && VAR="${OPTIONS[-1]}"
+      _valid_varname "$VAR" \
+        || die "Invalid variable name ($VAR) $errline."
     fi
 
-    local -a subopts
-    IFS='|' read -ra subopts <<< "$OPTION"
+    #------------------------------------------------------------------------
+    # From getopt manpage: A short option "may be followed by one colon to
+    # indicate it has a required argument, and by two colons to indicate it
+    # has an optional argument". The same holds true for long options.
 
-    for subopt in "${subopts[@]}"; do
-      if [[ $subopt =~ ^[[:alnum:]]$ ]]; then
-        [[ $SHORTOPTS == *"$subopt"* ]] && {
-          warn "Repeated short option ($subopt) on line $BPI_IX."
-          ((ERR++))
-          continue
-        }
+    # We are currently not supporting an optional argument.
 
-        SHORTOPTS+="$subopt"
+    for opt in "${OPTIONS[@]}"; do
+      if [[ $opt =~ ^[[:alnum:]]$ ]]; then
+        [[ $SHORTOPTS == *"$opt"* ]] && die "Repeated short option ($opt) $errline."
+        SHORTOPTS+="$opt"
         [[ $TYPE != 'boolean' ]] && SHORTOPTS+=':'
 
-      elif [[ $subopt =~ ^[[:alnum:]]+$ ]]; then
-        [[ $LONGOPTS == *"$subopt"* ]] && {
-          warn "Repeated long option ($subopt) on line $BPI_IX."
-          ((ERR++))
-          continue
-        }
-
-        LONGOPTS+="$subopt"
+      elif [[ $opt =~ ^[[:alnum:]]+$ ]]; then
+        [[ $LONGOPTS == *"$opt"* ]] && die "Repeated long option ($opt) $errline."
+        LONGOPTS+="$opt"
         [[ $TYPE != 'boolean' ]] && LONGOPTS+=':,'
 
       else
-        warn "Invalid suboption ($subopt) on line $BPI_IX."
-        ((ERR++))
+        die "Invalid option ($opt) on line $BPI_IX."
       fi
     done
 
@@ -460,14 +448,7 @@ function _build_parms_info() {
   debug "$(printf '%-15s - %-15s <' 'SHORTOPTS' 'LONGOPTS')"
   debug "$(printf '%-15s - %-15s <' "$SHORTOPTS" "$LONGOPTS")"
 
-  ((ERR)) && {
-    bs="$(basename "${BASH_SOURCE[2]}:")"
-    fn="${FUNCNAME[2]}:"
-    [[ $fn =~ main:|source: ]] && fn=
-    ln="${BASH_LINENO[1]}"
-
-    die "Problems with options definition at $bs$fn$ln, exiting."
-  }
+  return 0
 }
 
 #----------------------------------------------------------------------------

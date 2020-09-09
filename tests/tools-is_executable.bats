@@ -56,3 +56,12 @@ testfile="$sourcedir/tools"
   assert_output ''
   rm "$execfileexists"
 }
+
+#-----------------------------------------------------------------------------
+@test 'is_executable \"function\" returns 0' {
+  source "$testfile"
+  testit() { true; }
+  run is_executable "testit"
+  assert_success
+  assert_output ''
+}

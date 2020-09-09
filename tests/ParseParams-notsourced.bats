@@ -2,11 +2,12 @@
 
 load global
 
-ParseParams='./ParseParams'
+sourcedir="$(dirname $BATS_TEST_DIRNAME)"
+testfile="$sourcedir/ParseParams"
 
 #-----------------------------------------------------------------------------
 @test 'must only be sourced' {
-  run "$ParseParams"
+  run "$testfile"
   assert_failure
   assert_output 'ParseParams must only be sourced'
 }
@@ -21,7 +22,7 @@ ParseParams='./ParseParams'
   ln -sf "$MOCK" "$MOCKCMD"
   PATH="$MOCKPATH:$PATH"
 
-  run source "$ParseParams"
+  run source "$testfile"
 
   assert_failure
   assert_output "Unsupported version of getopt!"

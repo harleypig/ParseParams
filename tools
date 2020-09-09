@@ -129,7 +129,7 @@ debug() {
   # Assume if we're called with nothing, then we want at least one empty line
   # is wanted.
 
-  [[ "${#msg[@]}" -eq 0 ]] && msg=('')
+  [[ ${#msg[@]} -eq 0 ]] && msg=('')
 
   local lineno func file trace
   local -a el
@@ -178,13 +178,17 @@ debug() {
 : << POD
 =head2 is_executable
 
-Returns 0 for an application that is on the path and is executable, otherwise
-returns 1.
+Returns 0 for a word that can be executed as a command, otherwise returns 1.
 
 =cut
 POD
 
-is_executable() { [[ -x "$(command -v "$1" 2> /dev/null)" ]]; }
+is_executable() {
+  local check
+  check=$(type -t "$1") || return 1
+  [[ $check != 'file' ]] && return 0
+  [[ -x "$(command -v "$1" 2> /dev/null)" ]]
+}
 
 #----------------------------------------------------------------------------
 : << POD
@@ -217,4 +221,4 @@ Checks that a value is a positive integer (a number without a decimal).
 =cut
 POD
 
-is_integer() { [[ -n "$1" ]] && [[ $1 != *[!0-9]* ]]; }
+is_integer() { [[ -n $1 ]] && [[ $1 != *[!0-9]* ]]; }

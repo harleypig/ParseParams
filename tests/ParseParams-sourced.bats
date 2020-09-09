@@ -2,7 +2,8 @@
 
 load global
 
-ParseParams='./ParseParams'
+sourcedir="$(dirname $BATS_TEST_DIRNAME)"
+testfile="$sourcedir/ParseParams"
 
 source "$ParseParams"
 

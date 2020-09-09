@@ -12,7 +12,18 @@ note() {
 #-----------------------------------------------------------------------------
 # Generate random string
 
-random_string() { tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1; }
+random_string() {
+  local -l opt="$1"
+  shift
+
+  local -i count="${1:-32}"
+
+  case "$opt" in
+    alpha) tr -dc 'a-zA-Z' < /dev/urandom | fold -w "$count" | head -n 1 ;;
+    numeric) tr -dc '0-9' < /dev/urandom | fold -w "$count" | head -n 1 ;;
+    *) tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w "$count" | head -n 1 ;;
+  esac
+}
 
 #-----------------------------------------------------------------------------
 # Load helpers
