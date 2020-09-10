@@ -9,8 +9,8 @@ testfile="$sourcedir/ParseParams"
 # Tests for _check_type
 
 #-----------------------------------------------------------------------------
-@test '[null]' {
-  expected_out='must pass variable name and type name to _check_type'
+@test '[null] fails' {
+  expected_out='must pass type name and value to _check_type'
   source "$testfile"
   run _check_type
   assert_failure
@@ -18,8 +18,8 @@ testfile="$sourcedir/ParseParams"
 }
 
 #-----------------------------------------------------------------------------
-@test 'one parm' {
-  expected_out='must pass variable name and type name to _check_type'
+@test 'one parm fails' {
+  expected_out='must pass type name and value to _check_type'
   source "$testfile"
   run _check_type 'one'
   assert_failure
@@ -27,8 +27,8 @@ testfile="$sourcedir/ParseParams"
 }
 
 #-----------------------------------------------------------------------------
-@test 'too many parms' {
-  expected_out='must pass variable name and type name to _check_type'
+@test 'too many parms fails' {
+  expected_out='must pass type name and value to _check_type'
   source "$testfile"
   run _check_type 'one' 'two' 'three'
   assert_failure
@@ -36,8 +36,8 @@ testfile="$sourcedir/ParseParams"
 }
 
 #-----------------------------------------------------------------------------
-@test '\"\" \"\"' {
-  expected_out='cannot pass empty values to _check_type'
+@test '\"\" \"\" fails' {
+  expected_out='cannot pass empty type to _check_type'
   source "$testfile"
   run _check_type '' ''
   assert_failure
@@ -45,17 +45,8 @@ testfile="$sourcedir/ParseParams"
 }
 
 #-----------------------------------------------------------------------------
-@test '\"abc\" \"\"' {
-  expected_out='cannot pass empty values to _check_type'
-  source "$testfile"
-  run _check_type 'gigglesnort' ''
-  assert_failure
-  assert_output "$expected_out"
-}
-
-#-----------------------------------------------------------------------------
-@test '\"\" \"abc\"' {
-  expected_out='cannot pass empty values to _check_type'
+@test '\"\" \"abc\" fails' {
+  expected_out='cannot pass empty type to _check_type'
   source "$testfile"
   run _check_type '' 'gigglesnort'
   assert_failure
@@ -63,7 +54,16 @@ testfile="$sourcedir/ParseParams"
 }
 
 #-----------------------------------------------------------------------------
-@test 'boolean \"\"' {
+@test 'boolean \"\" fails' {
+  expected_out="Invalid type (boolean is handled differently)"
+  source "$testfile"
+  run _check_type 'boolean' ''
+  assert_failure
+  assert_output "$expected_out"
+}
+
+#-----------------------------------------------------------------------------
+@test 'boolean \"abc\" fails' {
   expected_out="Invalid type (boolean is handled differently)"
   source "$testfile"
   run _check_type 'boolean' 'two'
@@ -72,7 +72,7 @@ testfile="$sourcedir/ParseParams"
 }
 
 #-----------------------------------------------------------------------------
-@test 'typenotinarray \"\"' {
+@test 'typenotinarray \"\" fails' {
   badtype="$(random_string)"
   expected_out="Invalid type (${badtype,,}), it must exist and not be null or empty"
   source "$testfile"
@@ -82,7 +82,7 @@ testfile="$sourcedir/ParseParams"
 }
 
 #-----------------------------------------------------------------------------
-@test 'typenullinarray \"\"' {
+@test 'typenullinarray \"\" fails' {
   badtype="$(random_string)"
   expected_out="Invalid type (${badtype,,}), it must exist and not be null or empty"
   source "$testfile"
@@ -93,7 +93,7 @@ testfile="$sourcedir/ParseParams"
 }
 
 #-----------------------------------------------------------------------------
-@test 'typeemptyinarray \"\"' {
+@test 'typeemptyinarray \"\" fails' {
   badtype="$(random_string)"
   expected_out="Invalid type (${badtype,,}), it must exist and not be null or empty"
   source "$testfile"
@@ -104,52 +104,70 @@ testfile="$sourcedir/ParseParams"
 }
 
 #-----------------------------------------------------------------------------
-@test 'string \"\"' {
+@test 'string \"\" fails' {
   source "$testfile"
-  badstring=
-  run _check_type 'string' "badstring"
+  checkstring=
+  run _check_type 'string' "$checkstring"
   assert_failure
   assert_output ''
 }
 
 #-----------------------------------------------------------------------------
-@test 'string \"abc\"' {
+@test 'string \"abc\" succeeds' {
   source "$testfile"
-  badstring="$(random_string)"
-  run _check_type 'string' "badstring"
+  checkstring="$(random_string)"
+  run _check_type 'string' "$checkstring"
   assert_success
   assert_output ''
 }
 
 #-----------------------------------------------------------------------------
-@test 'char \"\"' {
+@test 'integer \"\" fails' {
   source "$testfile"
-  badstring=
-  run _check_type 'char' "badstring"
+  checkstring=
+  run _check_type 'integer' "$checkstring"
   assert_failure
-  assert_output ''
+  assert_output "$expected_out"
 }
 
 #-----------------------------------------------------------------------------
-@test 'char \"ab\"' {
+@test 'integer \"123\" succeeds' {
   source "$testfile"
-  badstring="$(random_string)"
-  run _check_type 'char' "badstring"
-  assert_failure
-  assert_output ''
-}
-
-#-----------------------------------------------------------------------------
-@test 'char \"a\"' {
-  source "$testfile"
-  badstring="$(random_string 1)"
-  run _check_type 'char' "badstring"
+  checkstring="$(random_string numeric 5)"
+  run _check_type 'integer' "$checkstring"
   assert_success
   assert_output ''
 }
 
 #-----------------------------------------------------------------------------
-@test 'nosuchfunc \"value\"' {
+@test 'char \"\" fails' {
+  source "$testfile"
+  checkstring=
+  run _check_type 'char' "checkstring"
+  assert_failure
+  assert_output ''
+}
+
+#-----------------------------------------------------------------------------
+@test 'char \"ab\" fails' {
+  source "$testfile"
+  checkstring="$(random_string)"
+  run _check_type 'char' "checkstring"
+  assert_failure
+  assert_output ''
+}
+
+#-----------------------------------------------------------------------------
+@test 'char \"a\" succeeds' {
+  source "$testfile"
+  checkstring="$(random_string 1)"
+  run _check_type 'char' "$checkstring"
+  assert_success
+  assert_output ''
+}
+
+#-----------------------------------------------------------------------------
+@test 'nosuchfunc \"value\" fails' {
   nosuchfunc="$(random_string)"
   expected_out="$nosuchfunc does not appear to be a command or function"
   source "$testfile"

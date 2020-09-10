@@ -1,7 +1,5 @@
 #!/usr/bin/env bats
 
-# OPTION TYPE VAR DEFAULT REQ
-
 load global
 
 sourcedir="$(dirname $BATS_TEST_DIRNAME)"
@@ -67,9 +65,9 @@ checkit() {
 @test 'invalid type' {
   source "$testfile"
   shortopt="$(random_string 'alpha' 1)"
-  badtype="$(random_string)"
-  defline="$shortopt,$badtype"
-  expected_out="Invalid type (${badtype,,}) on definition line 0 ($defline)."
+  checktype="$(random_string)"
+  defline="$shortopt,$checktype"
+  expected_out="Invalid type (${checktype,,}) on definition line 0 ($defline)."
   run _build_parms_info "$defline"
   assert_failure
   assert_output "$expected_out"
@@ -264,10 +262,10 @@ checkit() {
   source "$testfile"
 
   shortopt="$(random_string 'alpha' 1)"
-  goodtype='boolean'
-  defline="$shortopt,$goodtype"
+  checktype='boolean'
+  defline="$shortopt,$checktype"
 
-  expected_def_lines="$shortopt,$goodtype,$shortopt,,optional$nl"
+  expected_def_lines="$shortopt,$checktype,$shortopt,,optional$nl"
   expected_pos_lines=''
   expected_shortopts="$shortopt"
   expected_longopts=''
@@ -282,10 +280,10 @@ checkit() {
   source "$testfile"
 
   shortopt="$(random_string 'alpha' 1)"
-  goodtype='boolean'
-  defline="$shortopt,$goodtype,,,required"
+  checktype='boolean'
+  defline="$shortopt,$checktype,,,required"
 
-  expected_def_lines="$shortopt,$goodtype,$shortopt,,optional$nl"
+  expected_def_lines="$shortopt,$checktype,$shortopt,,optional$nl"
   expected_pos_lines=''
   expected_shortopts="$shortopt"
   expected_longopts=''
@@ -348,15 +346,70 @@ checkit() {
 }
 
 #-----------------------------------------------------------------------------
+@test 'short defaults with default' {
+  source "$testfile"
+
+  shortopt="$(random_string 'alpha' 1)"
+  default="$(random_string)"
+  defline="$shortopt,,,$default"
+
+  expected_def_lines="$shortopt,string,$shortopt,$default,optional$nl"
+  expected_pos_lines=''
+  expected_shortopts="$shortopt:"
+  expected_longopts=''
+
+  _build_parms_info "$defline"
+
+  checkit
+}
+
+#-----------------------------------------------------------------------------
+@test 'long defaults with default' {
+  source "$testfile"
+
+  longopt="$(random_string 'alpha' 1)$(random_string 8)"
+  default="$(random_string)"
+  defline="$longopt,,,$default"
+
+  expected_def_lines="$longopt,string,$longopt,$default,optional$nl"
+  expected_pos_lines=''
+  expected_shortopts=''
+  expected_longopts="$longopt:"
+
+  _build_parms_info "$defline"
+
+  checkit
+}
+
+#-----------------------------------------------------------------------------
+@test 'both short and long defaults with default' {
+  source "$testfile"
+
+  shortopt="$(random_string 'alpha' 1)"
+  longopt="$(random_string 'alpha' 1)$(random_string 8)"
+  default="$(random_string)"
+  defline="$shortopt|$longopt,,,$default"
+
+  expected_def_lines="$shortopt|$longopt,string,$longopt,$default,optional$nl"
+  expected_pos_lines=''
+  expected_shortopts="$shortopt:"
+  expected_longopts="$longopt:"
+
+  _build_parms_info "$defline"
+
+  checkit
+}
+
+#-----------------------------------------------------------------------------
 @test 'short option, type, var' {
   source "$testfile"
 
   shortopt="$(random_string 'alpha' 1)"
-  goodtype='char'
+  checktype='char'
   varname="$(random_string 'alpha' 1)$(random_string 8)"
-  defline="$shortopt,$goodtype,$varname"
+  defline="$shortopt,$checktype,$varname"
 
-  expected_def_lines="$shortopt,$goodtype,$varname,,optional$nl"
+  expected_def_lines="$shortopt,$checktype,$varname,,optional$nl"
   expected_pos_lines=''
   expected_shortopts="$shortopt:"
   expected_longopts=''
@@ -371,11 +424,11 @@ checkit() {
   source "$testfile"
 
   longopt="$(random_string 'alpha' 1)$(random_string 8)"
-  goodtype='char'
+  checktype='char'
   varname="$(random_string 'alpha' 1)$(random_string 8)"
-  defline="$longopt,$goodtype,$varname"
+  defline="$longopt,$checktype,$varname"
 
-  expected_def_lines="$longopt,$goodtype,$varname,,optional$nl"
+  expected_def_lines="$longopt,$checktype,$varname,,optional$nl"
   expected_pos_lines=''
   expected_shortopts=''
   expected_longopts="$longopt:"
@@ -391,11 +444,11 @@ checkit() {
 
   shortopt="$(random_string 'alpha' 1)"
   longopt="$(random_string 'alpha' 1)$(random_string 8)"
-  goodtype='char'
+  checktype='char'
   varname="$(random_string 'alpha' 1)$(random_string 8)"
-  defline="$shortopt|$longopt,$goodtype,$varname"
+  defline="$shortopt|$longopt,$checktype,$varname"
 
-  expected_def_lines="$shortopt|$longopt,$goodtype,$varname,,optional$nl"
+  expected_def_lines="$shortopt|$longopt,$checktype,$varname,,optional$nl"
   expected_pos_lines=''
   expected_shortopts="$shortopt:"
   expected_longopts="$longopt:"
@@ -403,4 +456,72 @@ checkit() {
   _build_parms_info "$defline"
 
   checkit
+}
+
+#-----------------------------------------------------------------------------
+@test 'bad char default fails' {
+  source "$testfile"
+
+  shortopt="$(random_string 'alpha' 1)"
+  checktype='char'
+  varname="$(random_string 'alpha' 1)$(random_string 8)"
+  checkvalue="$(random_string)"
+  defline="$shortopt,$checktype,$varname,$checkvalue"
+
+  expected_out="default value ($checkvalue) does not pass type check on definition line 0 ($defline)."
+
+  run _build_parms_info "$defline"
+
+  assert_failure
+  assert_output "$expected_out"
+}
+
+#-----------------------------------------------------------------------------
+@test 'good char default succeeds' {
+  source "$testfile"
+
+  shortopt="$(random_string 'alpha' 1)"
+  checktype='char'
+  varname="$(random_string 'alpha' 1)$(random_string 8)"
+  checkvalue="$(random_string 1)"
+  defline="$shortopt,$checktype,$varname,$checkvalue"
+
+  run _build_parms_info "$defline"
+
+  assert_success
+  assert_output ''
+}
+
+#-----------------------------------------------------------------------------
+@test 'bad integer default fails' {
+  source "$testfile"
+
+  shortopt="$(random_string 'alpha' 1)"
+  checktype='integer'
+  varname="$(random_string 'alpha' 1)$(random_string 8)"
+  checkvalue="$(random_string 5)"
+  defline="$shortopt,$checktype,$varname,$checkvalue"
+
+  expected_out="default value ($checkvalue) does not pass type check on definition line 0 ($defline)."
+
+  run _build_parms_info "$defline"
+
+  assert_failure
+  assert_output "$expected_out"
+}
+
+#-----------------------------------------------------------------------------
+@test 'good integer default succeeds' {
+  source "$testfile"
+
+  shortopt="$(random_string 'alpha' 1)"
+  checktype='integer'
+  varname="$(random_string 'alpha' 1)$(random_string 8)"
+  checkvalue="$(random_string numeric 5)"
+  defline="$shortopt,$checktype,$varname,$checkvalue"
+
+  run _build_parms_info "$defline"
+
+  assert_success
+  assert_output ''
 }

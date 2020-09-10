@@ -211,6 +211,8 @@ declare -i ERR=0
 declare -a POS_LINES
 declare -A TYPES
 
+declare nl=$'\n'
+
 # Boolean types are handled as a special case.
 
 TYPES['boolean']=''
@@ -313,11 +315,14 @@ POD
 # XXX: Should we be returning > 1 instead of dying here?
 
 function _check_type() {
-  [[ $# -eq 2 ]] || die 'must pass variable name and type name to _check_type'
-  [[ -z $1 || -z $2 ]] && die 'cannot pass empty values to _check_type'
+  [[ $# -eq 2 ]] || die 'must pass type name and value to _check_type'
+  [[ -z $1 ]] && die 'cannot pass empty type to _check_type'
 
   local -l type="$1"
   local variable="$2"
+
+  debug "type: $type"
+  debug "variable: $variable"
 
   [[ $type == 'boolean' ]] && die "Invalid type ($type is handled differently)"
 
@@ -333,8 +338,9 @@ function _check_type() {
     || die "$func does not appear to be a command or function"
 
   # We *want* the output of the $(call) to be executed!
+  debug "$func ${variable}"
   # shellcheck disable=SC2091
-  $("$func" "${!variable}")
+  $("$func" "$variable")
 }
 
 #----------------------------------------------------------------------------
@@ -360,7 +366,7 @@ function _build_parms_info() {
   local OPTION VAR DEFAULT
   local -l TYPE REQ
 
-  IFS=$'\n' readarray -t def_lines <<< "$1"
+  IFS=$nl readarray -t def_lines <<< "$1"
 
   for BPI_IX in "${!def_lines[@]}"; do
     [[ -z ${def_lines[BPI_IX]} ]] && continue
@@ -401,6 +407,8 @@ function _build_parms_info() {
       && die "'$POS_DEF' must be the only option $errline."
 
     if [[ $OPTION == "$POS_DEF" ]]; then
+      # XXX: Include in docs the following
+      # DEFAULT and REQUIRED are silently ignored
       [[ -z $VAR ]] && die "Variable name is required when using position $errline."
       POS_LINES+=("$TYPE,$VAR")
       continue
@@ -410,6 +418,13 @@ function _build_parms_info() {
       [[ -z $VAR ]] && VAR="${OPTIONS[-1]}"
       _valid_varname "$VAR" \
         || die "Invalid variable name ($VAR) $errline."
+    fi
+
+    #------------------------------------------------------------------------
+    # If a default value is provided, does it pass the type check?
+    if [[ -n $DEFAULT ]]; then
+      _check_type "$TYPE" "$DEFAULT" \
+        || die "default value ($DEFAULT) does not pass type check $errline."
     fi
 
     #------------------------------------------------------------------------
@@ -437,7 +452,7 @@ function _build_parms_info() {
 
     DEF_LINES+=$(printf '%s,' "$OPTION" "$TYPE" "$VAR" "$DEFAULT" "$REQ")
     DEF_LINES="${DEF_LINES%%,}"
-    DEF_LINES+=$'\n'
+    DEF_LINES+=$nl
   done
 
   # Get rid of trailing ','
@@ -473,9 +488,8 @@ function _build_eval_string() {
 
   local OPTION VAR DEFAULT DEFAULTS_STRING REQUIRED_STRING CASE_STRING
   local -l TYPE REQ
-  local CRLF=$'\n'
 
-  IFS=$'\n' readarray -t def_lines <<< "$DEF_LINES"
+  IFS=$nl readarray -t def_lines <<< "$DEF_LINES"
 
   for BES_IX in "${!def_lines[@]}"; do
     [[ -z ${def_lines[BES_IX]} ]] && continue
@@ -485,41 +499,41 @@ function _build_eval_string() {
     IFS=',' read -r OPTION TYPE VAR DEFAULT REQ <<< "${def_lines[BES_IX]}"
     #debug "OPTION: $OPTION ::: TYPE: $TYPE ::: VAR: $VAR ::: DEFAULT: $DEFAULT ::: REQ: $REQ <"
 
-    CASE_STRING+="$CRLF"
+    CASE_STRING+="$nl"
 
     if [[ $OPTION =~ ^[[:alnum:]]$ ]]; then
-      CASE_STRING+="-$OPTION)$CRLF"
+      CASE_STRING+="-$OPTION)$nl"
     elif [[ $OPTION != *"|"* ]]; then
-      CASE_STRING+="--$OPTION)$CRLF"
+      CASE_STRING+="--$OPTION)$nl"
     else
-      CASE_STRING+="-${OPTION/|/ | \-\-})$CRLF"
+      CASE_STRING+="-${OPTION/|/ | \-\-})$nl"
     fi
 
-    CASE_STRING+="debug \"case: $OPTION \$(printf '%s' \$2)\"$CRLF"
+    CASE_STRING+="debug \"case: $OPTION \$(printf '%s' \$2)\"$nl"
 
     if [[ $TYPE == 'boolean' ]]; then
-      CASE_STRING+="$VAR=0$CRLF"
-      CASE_STRING+="shift$CRLF"
+      CASE_STRING+="$VAR=0$nl"
+      CASE_STRING+="shift$nl"
 
       DEFAULT=1
     else
-      CASE_STRING+="$VAR=\"\$2\"$CRLF"
-      CASE_STRING+="shift 2$CRLF"
+      CASE_STRING+="$VAR=\"\$2\"$nl"
+      CASE_STRING+="shift 2$nl"
 
-      VALIDATE_STRING+="_check_type '$VAR' '$TYPE' || { warn \"$OPTION (\$$VAR) is not a $TYPE.\"; ((ERR++)); }$CRLF"
+      VALIDATE_STRING+="_check_type '$TYPE' '$VAR' || { warn \"$OPTION (\$$VAR) is not a $TYPE.\"; ((ERR++)); }$nl"
     fi
 
-    CASE_STRING+=";;$CRLF"
+    CASE_STRING+=";;$nl"
 
     if [[ -n $DEFAULT ]]; then
-      DEFAULTS_STRING+="$VAR='$DEFAULT'$CRLF"
+      DEFAULTS_STRING+="$VAR='$DEFAULT'$nl"
     fi
 
     if [[ $REQ == 'required' ]]; then
-      REQUIRED_STRING+="[[ -n \$$VAR ]] || { warn '$VAR ($OPTION) is required.'; ((ERR++)); }$CRLF"
+      REQUIRED_STRING+="[[ -n \$$VAR ]] || { warn '$VAR ($OPTION) is required.'; ((ERR++)); }$nl"
     fi
 
-    DEBUG_STRING+="debug \"(after case) $VAR: \$$VAR\"$CRLF"
+    DEBUG_STRING+="debug \"(after case) $VAR: \$$VAR\"$nl"
 
   done
 
@@ -577,7 +591,7 @@ $CASE_STRING
     IFS=',' read -r TYPE VAR <<< \"\${POS_LINES[PL_IX]}\"
     [[ -n \$1 ]] && IFS= read -r \"\$VAR\" <<< \"\$1\"
     debug \"(in pos loop) \$VAR: \${!VAR}\"
-    _check_type \"\$VAR\" \"\$TYPE\" || { warn \"'\${!VAR}' (position \$PL_IX) is not a \$TYPE\"; ((ERR++)); }
+    _check_type \"\$TYPE\" \"\$VAR\" || { warn \"'\${!VAR}' (position \$PL_IX) is not a \$TYPE\"; ((ERR++)); }
     shift
   done
 "

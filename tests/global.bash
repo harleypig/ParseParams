@@ -14,7 +14,10 @@ note() {
 
 random_string() {
   local -l opt="$1"
-  shift
+
+  case "$opt" in
+    alpha|numeric) shift;;
+  esac
 
   local -i count="${1:-32}"
 
