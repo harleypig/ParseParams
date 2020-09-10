@@ -29,13 +29,13 @@ checkit() {
 }
 
 ##############################################################################
-# Tests for __build_parms_info
+# Tests for __normalize_definitions
 
 #-----------------------------------------------------------------------------
 @test 'no definition list' {
   source "$testfile"
-  expected_out='No definitions were passed to _build_parms_info.'
-  run _build_parms_info
+  expected_out='No definitions were passed to _normalize_definitions.'
+  run _normalize_definitions
   assert_failure
   assert_output "$expected_out"
 }
@@ -43,8 +43,8 @@ checkit() {
 #-----------------------------------------------------------------------------
 @test 'empty definition list' {
   source "$testfile"
-  expected_out='No definitions were passed to _build_parms_info.'
-  run _build_parms_info ''
+  expected_out='No definitions were passed to _normalize_definitions.'
+  run _normalize_definitions ''
   assert_failure
   assert_output "$expected_out"
 }
@@ -56,7 +56,7 @@ checkit() {
   badrequire="$(random_string)"
   defline="$shortopt,,,,$badrequire"
   expected_out="Only 'required', 'optional' or null is valid on definition line 0 ($defline)."
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
   assert_failure
   assert_output "$expected_out"
 }
@@ -68,7 +68,7 @@ checkit() {
   checktype="$(random_string)"
   defline="$shortopt,$checktype"
   expected_out="Invalid type (${checktype,,}) on definition line 0 ($defline)."
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
   assert_failure
   assert_output "$expected_out"
 }
@@ -79,7 +79,7 @@ checkit() {
   badoption="$(random_string)"
   defline="$POS_DEF|$badoption"
   expected_out="'$POS_DEF' must be the only option on definition line 0 ($defline)."
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
   assert_failure
   assert_output "$expected_out"
 }
@@ -90,7 +90,7 @@ checkit() {
   shortopt="$(random_string)"
   defline="$shortopt|$POS_DEF"
   expected_out="'$POS_DEF' must be the only option on definition line 0 ($defline)."
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
   assert_failure
   assert_output "$expected_out"
 }
@@ -100,7 +100,7 @@ checkit() {
   source "$testfile"
   defline="$POS_DEF"
   expected_out="Variable name is required when using position on definition line 0 ($defline)."
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
   assert_failure
   assert_output "$expected_out"
 }
@@ -111,7 +111,7 @@ checkit() {
   varname="$(random_string 'numeric' 1)$(random_string 8)"
   defline="$varname"
   expected_out="Invalid variable name ($varname) on definition line 0 ($defline)."
-  run _build_parms_info "$varname"
+  run _normalize_definitions "$varname"
   assert_failure
   assert_output "$expected_out"
 }
@@ -122,7 +122,7 @@ checkit() {
   varname="$(random_string 'numeric' 1)$(random_string 8)"
   defline="a,,$varname"
   expected_out="Invalid variable name ($varname) on definition line 0 ($defline)."
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
   assert_failure
   assert_output "$expected_out"
 }
@@ -133,7 +133,7 @@ checkit() {
   shortopt="$(random_string 'alpha' 1)"
   defline="$shortopt|$shortopt"
   expected_out="Repeated short option ($shortopt) on definition line 0 ($defline)."
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
   assert_failure
   assert_output "$expected_out"
 }
@@ -144,7 +144,7 @@ checkit() {
   shortopt="$(random_string 'alpha' 1)"
   deflines="$shortopt$nl$shortopt"
   expected_out="Repeated short option ($shortopt) on definition line 1 ($shortopt)."
-  run _build_parms_info "$deflines"
+  run _normalize_definitions "$deflines"
   assert_failure
   assert_output "$expected_out"
 }
@@ -155,7 +155,7 @@ checkit() {
   longopt="$(random_string 'alpha' 8)"
   defline="$longopt|$longopt"
   expected_out="Repeated long option ($longopt) on definition line 0 ($defline)."
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
   assert_failure
   assert_output "$expected_out"
 }
@@ -166,7 +166,7 @@ checkit() {
   longopt="$(random_string 'alpha' 8)"
   deflines="$longopt$nl$longopt"
   expected_out="Repeated long option ($longopt) on definition line 1 ($longopt)."
-  run _build_parms_info "$deflines"
+  run _normalize_definitions "$deflines"
   assert_failure
   assert_output "$expected_out"
 }
@@ -183,7 +183,7 @@ checkit() {
   expected_shortopts="$shortopt:"
   expected_longopts=''
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -200,7 +200,7 @@ checkit() {
   expected_shortopts=''
   expected_longopts="$longopt:"
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -218,7 +218,7 @@ checkit() {
   expected_shortopts="$shortopt:"
   expected_longopts="$longopt:"
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -235,7 +235,7 @@ checkit() {
   expected_shortopts=''
   expected_longopts=''
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -252,7 +252,7 @@ checkit() {
   expected_shortopts=''
   expected_longopts=''
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -270,7 +270,7 @@ checkit() {
   expected_shortopts="$shortopt"
   expected_longopts=''
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -288,7 +288,7 @@ checkit() {
   expected_shortopts="$shortopt"
   expected_longopts=''
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -305,7 +305,7 @@ checkit() {
   expected_shortopts="$shortopt:"
   expected_longopts=''
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -322,7 +322,7 @@ checkit() {
   expected_shortopts=''
   expected_longopts="$longopt:"
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -340,7 +340,7 @@ checkit() {
   expected_shortopts="$shortopt:"
   expected_longopts="$longopt:"
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -358,7 +358,7 @@ checkit() {
   expected_shortopts="$shortopt:"
   expected_longopts=''
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -376,7 +376,7 @@ checkit() {
   expected_shortopts=''
   expected_longopts="$longopt:"
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -395,7 +395,7 @@ checkit() {
   expected_shortopts="$shortopt:"
   expected_longopts="$longopt:"
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -414,7 +414,7 @@ checkit() {
   expected_shortopts="$shortopt:"
   expected_longopts=''
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -433,7 +433,7 @@ checkit() {
   expected_shortopts=''
   expected_longopts="$longopt:"
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -453,7 +453,7 @@ checkit() {
   expected_shortopts="$shortopt:"
   expected_longopts="$longopt:"
 
-  _build_parms_info "$defline"
+  _normalize_definitions "$defline"
 
   checkit
 }
@@ -470,7 +470,7 @@ checkit() {
 
   expected_out="default value ($checkvalue) does not pass type check on definition line 0 ($defline)."
 
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
 
   assert_failure
   assert_output "$expected_out"
@@ -486,7 +486,7 @@ checkit() {
   checkvalue="$(random_string 1)"
   defline="$shortopt,$checktype,$varname,$checkvalue"
 
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
 
   assert_success
   assert_output ''
@@ -504,7 +504,7 @@ checkit() {
 
   expected_out="default value ($checkvalue) does not pass type check on definition line 0 ($defline)."
 
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
 
   assert_failure
   assert_output "$expected_out"
@@ -520,7 +520,7 @@ checkit() {
   checkvalue="$(random_string numeric 5)"
   defline="$shortopt,$checktype,$varname,$checkvalue"
 
-  run _build_parms_info "$defline"
+  run _normalize_definitions "$defline"
 
   assert_success
   assert_output ''

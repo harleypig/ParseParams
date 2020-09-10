@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# XXX: support getopt --name progname - The name that will be used by the getopt(3) routines when it reports errors.
+# XXX: support getopt no colon, one colon, two colon for options
+# XXX: support --quiet and --quiet-output options
+# XXX: support choosing to use --alternative or not
+
 #source utility
 source ./tools
 sourced || die 'ParseParams must only be sourced'
@@ -244,7 +249,7 @@ POD
 function parse_params() {
   [[ $# -eq 0 ]] && die 'No definitions were passed to parse_params.'
 
-  _build_parms_info "$1"
+  _normalize_definitions "$1"
   shift
 
   eval "$(_build_eval_string)"
@@ -345,7 +350,7 @@ function _check_type() {
 
 #----------------------------------------------------------------------------
 : << POD
-=head2 _build_parms_info
+=head2 _normalize_definitions
 
 Normalizes the various ways a definition string can be defined into
 a stricter, normalized string for use in C<_build_eval_string> below.
@@ -360,8 +365,8 @@ POD
 
 # Sets SHORTOPTS and LONGOPTS to required values.
 
-function _build_parms_info() {
-  [[ -z $1 ]] && die 'No definitions were passed to _build_parms_info.'
+function _normalize_definitions() {
+  [[ -z $1 ]] && die 'No definitions were passed to _normalize_definitions.'
 
   local OPTION VAR DEFAULT
   local -l TYPE REQ
@@ -538,10 +543,9 @@ function _build_eval_string() {
   done
 
   if [[ -n $CASE_STRING ]]; then
-    CASE_STRING="
-  local gopts=\"--alternative\"
-  [[ -n \$SHORTOPTS ]] && gopts=\"\$gopts --options \$SHORTOPTS\"
-  [[ -n \$LONGOPTS ]] && gopts=\"\$gopts --longoptions \$LONGOPTS\"
+    CASE_STRING="  local gopts=\"--alternative\"
+  [[ -n \$SHORTOPTS ]] && gopts+=\"\$gopts --options \$SHORTOPTS\"
+  [[ -n \$LONGOPTS ]] && gopts+=\"\$gopts --longoptions \$LONGOPTS\"
 
   debug \"gopts: \$gopts\"
 
