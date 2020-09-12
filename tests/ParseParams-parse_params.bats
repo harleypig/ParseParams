@@ -112,3 +112,17 @@ testfile="$sourcedir/ParseParams"
   [[ $? == 0 ]]
   [[ ${!option} == "$value" ]]
 }
+
+#-----------------------------------------------------------------------------
+@test 'unhandled parameters are left in \$REMAINDER' {
+  source "$testfile"
+  option="$(random_string 'alpha' 1)$(random_string 8)"
+  value="$(random_string 12)"
+  leftover1="$(random_string 8)"
+  leftover2="$(random_string 10)"
+  defline="$option"
+  eval set -- "-$option $value $leftover1 $leftover2"
+  parse_params "$defline" "$@"
+  [[ $? == 0 ]]
+  [[ ${REMAINDER[*]} == "$leftover1 $leftover2" ]]
+}

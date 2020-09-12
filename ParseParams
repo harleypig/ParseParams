@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# XXX: support getopt no colon, one colon, two colon for options
-# XXX: support --quiet and --quiet-output options
 # XXX: support choosing to use --alternative or not
+# XXX: add option to invert boolean (defaults to 0 instead of 1)
 
 #source utility
 source ./tools
@@ -56,15 +55,88 @@ The first parameter is the parameter definition string, described below.
 
 The remaining parameters are the input parameters to be validated.
 
-NOTE: Not explicitly including "\$@" is allowed but this scenario has not been
-tested.
-
 =head1 DESCRIPTION
 
-The ParseParams library takes a definition string and validates input
-parameters against that definition, setting variables to those values if they
-pass the various checks. Otherwise an error message is returned and the
-calling script is exited.
+The ParseParams library takes a definition string and parses input with
+getopt, then validates that input against defined functions. It will then set
+the defined variables to the input values.
+
+Any unhandled parameters are put in the REMAINDER array.
+
+=head1 DEFINITION STRING
+
+A definition string is made up of five (5) fields, separated by commas.
+
+B<OPTION,TYPE,VARNAME,DEFAULT,PARMTYPE>
+
+Example:
+
+C<a|appname,string,appname,myapp,optional>
+
+C<#,char>
+
+=head3 OPTION
+
+B<OPTION> is a required field.
+
+B<OPTION> can define a short option--a dash (-) followed by a single character,
+a long option--a double dash (--) followed by a string, or a short option and
+a long option separated by a pipe (|).
+
+A minimal definition string can be C<appname>. This would allow your program to
+accept C<--appname somestring>  as a parameter.  ParseParams would set the
+variable C<appname> to C<somestring>.
+
+C<appname> is the equivalent of C<appname,string,appname,,optional>.
+
+B<OPTION> can also contain a single hash--'#'--which defines a positional
+parameter. The first non-option parameter will be assigned to the first
+variable, the second non-option paramater to the second positional variable
+and so on.
+
+=head4 NOTE
+
+It is possible to use the same variable name for multiple definition lines.
+The last parameter on the command line will be the one used as the value.
+
+=head3 TYPE
+
+C<TYPE> is optional and defines what is acceptable as that parameter value
+(see L<TYPES> below).
+
+=head3 VARNAME
+
+B<VARNAME> is optional and will default to the last option defined. E.g., the
+definition line C<appname> will create a variable C<appname>. A definition
+line C<appname|a> will create a vriable C<a>.
+
+=head3 DEFAULT
+
+B<DEFAULT> is optional.
+
+IF B<DEFAULT> is set and the parameter is not used on the command line,
+B<VARNAME> will be set to the matching input parameter. Otherwise B<VARNAME>
+will be set to C<NULL>.
+
+B<DEFAULT> values are checked against the defined type and will cause parsing
+to fail if they don't pass the type check.
+
+B<DEFAULT> is ignored for C<boolean> types.
+
+=head3 PARMTYPE
+
+B<PARMTYPE> is optional and will default to C<optional>.
+
+B<PARMTYPE> can be one of C<switch>, C<optional>, or C<required>.
+
+C<switch> will define a parameter that accepts no input. E.g., C<--debug> or
+C<--verbose> would be switch parm types.
+
+C<optional> will define a parameter that requires a value but is not itself
+a required parameter.
+
+C<required> will define a paramater that requires a value and is itself
+a required parameter.
 
 =head1 TYPES
 
@@ -74,6 +146,8 @@ calling script is exited.
 
 This creates a switch parameter. The variable is set to 1 if it is not passed
 on the command line, otherwise it is set to 0.
+
+C<PARMTYPE> is forced to B<OPTIONAL> if C<TYPE> is B<boolean>.
 
 =item string
 
@@ -105,102 +179,6 @@ the TYPES array.
 C<mycheck> must return 0 for a passing check, or a 1 for a failed check. Any
 output is ignored.
 
-=head1 DEFINITION STRING
-
-Usage:
-
-  source ParseParams
-
-  PARM_DEF='
-  a|app,string,AppName,,required
-  b|bank,number,BankNumber
-  c,boolean
-  '
-  parse_params "$PARM_DEF" "$@"
-
-XXX FIX ME!!!
-
-The variable name defined by the definition line will be set to the matching
-input value.
-
-The remaining parameters are the input values that need to be validated.
-
-A definition line is made up of five (5) fields, separated by commas and/or
-spaces:
-
-B<OPTION, TYPE, VARNAME, DEFAULT, REQUIRED>
-
-B<OPTION> and B<TYPE> are required. A minimal definition line would look like:
-
-  a,appname
-
-The variable named C<a> would be set to C<appname>.
-
-The remaining three fields are optional. If you want to provide a default
-value, but not make the parameter required or have a different varname, your
-definition line would look like:
-
-  a|app,string,,appname
-
-If no parameter was used on the command line, C<app> would be set to
-C<appname>.
-
-Another possible definition is to set the first field to '#'. This will cause
-C<parse_params> to look for positional parameters. Since these are checked for
-last, any definitions with the same variable name will be overwritten with the
-positional value.
-
-=head3 OPTION
-
-B<OPTION> is a required field and can be any string.
-
-B<OPTION> can define a short option--a dash (-) followed by a single character,
-a long option--a double dash (--) followed by a string, or a short option and
-a long option separated by a pipe (|).
-
-If B<VARNAME> is not provided then B<VARNAME> will be set to the long option
-if it exists, or the short option if it does not.
-
-=head3 TYPE
-
-B<TYPE> is a required field and can be any of the types defined in the
-C<TYPES> section. See that section for what each type does.
-
-If B<TYPE> is C<boolean>, the B<REQUIRED> field is forced to be C<optional> and
-B<VARNAME> is forced to be either C<0> (true) or C<1> (false).
-
-If B<TYPE> is C<boolean> it does not make sense to have a default setting. If
-the switch is not used on the command line B<VARNAME> will be 1. If
-B<VARNAME> is used on the command line it will be 0.
-
-If a default is set in the parameter definition, it will be ignored.
-
-=head3 VARNAME
-
-B<VARNAME> is optional and will default to the long option, or if none
-provided, the short option.
-
-B<VARNAME> will be set to the matching input parameter.
-
-=head3 DEFAULT
-
-B<DEFAULT> is optional.
-
-IF B<DEFAULT> is set and the parameter is not used on the command line,
-B<VARNAME> will be set to the matching input parameter. Otherwise B<VARNAME>
-will be set to C<NULL>, except for type C<boolean> as described above.
-
-=head3 REQUIRED
-
-B<REQUIRED> is optional and will default to C<optional>.
-
-B<REQUIRED> can be either C<required> or C<optional> and is case insensitive.
-I.e., C<required>, C<REQUIRED> and C<Required> are identical.
-
-If B<REQUIRED> is C<required> the parameter must be included on the command
-line.
-
-
 =cut
 POD
 
@@ -210,8 +188,11 @@ POD
 # The character to be used for a position definition. This should be
 # a 1 character length string.
 declare POS_DEF='#' # If you change this make sure you update the documentation!
+
 declare DEFAULTS SHORTOPTS LONGOPTS DEF_LINES REQUIRED_CHECKS
-declare -a POS_LINES
+# REMAINDER is used in the EVAL_STRING
+# shellcheck disable=SC2034
+declare -a POS_LINES REMAINDER
 declare -A TYPES
 
 declare nl=$'\n'
@@ -285,8 +266,8 @@ POD
 
 Checks if varname is a valid variable name. Returns 0 if it is, 1 if it's not.
 
-A valid variable name starts with an underscore and an alpha character. The
-remaining characters can be an underscore or a alphanumeric character.
+A valid variable name starts with an underscore or an alpha character. The
+remaining characters can be an underscore or alphanumeric characters.
 
 =cut
 POD
@@ -302,12 +283,7 @@ _valid_varname() {
 : << POD
 =head2 _badopt
 
-XXX: DO ME!
-
-expects a string from getopt that looks like
-
-getopt: option '-bad' requires an argument
- -a '' --
+Takes an error string from getopt and prints a better error message.
 
 =cut
 POD
@@ -348,7 +324,7 @@ _badopt() {
 
 =over
 
-=item usage: _check_type typename variablename
+=item usage: _check_type typename variablename || die 'invalid type'
 
 =back
 
@@ -657,6 +633,8 @@ $CASE_CHECKS--)
   done
 
 $REQUIRED_CHECKS
+
+  REMAINDER=(\"\$@\")
 
   return \$ERR
 }
