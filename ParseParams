@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# XXX: support getopt --name progname - The name that will be used by the getopt(3) routines when it reports errors.
 # XXX: support getopt no colon, one colon, two colon for options
 # XXX: support --quiet and --quiet-output options
 # XXX: support choosing to use --alternative or not
@@ -211,8 +210,7 @@ POD
 # The character to be used for a position definition. This should be
 # a 1 character length string.
 declare POS_DEF='#' # If you change this make sure you update the documentation!
-declare SHORTOPTS LONGOPTS DEF_LINES
-declare -i ERR=0
+declare DEFAULTS SHORTOPTS LONGOPTS DEF_LINES REQUIRED_CHECKS
 declare -a POS_LINES
 declare -A TYPES
 
@@ -246,21 +244,19 @@ POD
 
 # Expects a definition string to be passed as a single parameter.
 
-function parse_params() {
+parse_params() {
   [[ $# -eq 0 ]] && die 'No definitions were passed to parse_params.'
 
+  debug "Normalizing definitions ..."
   _normalize_definitions "$1"
   shift
 
+  debug "Building eval string ..."
   eval "$(_build_eval_string)"
 
+  debug "Running _parse_params ..."
   _parse_params "$@" || {
     warn "Problems parsing parameters."
-    return 1
-  }
-
-  ((ERR)) && {
-    warn 'Some weird problem happened.'
     return 1
   }
 
@@ -304,6 +300,50 @@ _valid_varname() {
 
 #----------------------------------------------------------------------------
 : << POD
+=head2 _badopt
+
+XXX: DO ME!
+
+expects a string from getopt that looks like
+
+getopt: option '-bad' requires an argument
+ -a '' --
+
+=cut
+POD
+
+# ARGS: getopt: option '-I0Xz3dAGs' requires an argument
+# ARGS: getopt: unrecognized option '-MkwTaknXI'
+
+_badopt() {
+  local badopt="$*"
+
+  local -a work
+  IFS=$'\'' read -ra work <<< "$badopt"
+
+  local badarg
+  badarg="${work[1]}"
+
+  local opt junk
+  # shellcheck disable=SC2034
+  IFS=',' read -r opt junk < <(echo "$DEF_LINES" | grep -- "$badarg")
+
+  if [[ $badopt == *'requires an argument'* ]]; then
+    die "'$opt' requires a value."
+
+  elif [[ $badopt == *'doesn'\''t allow an argument'* ]]; then
+    die "'$opt' is a switch and does not accept parameters."
+
+  elif [[ $badopt == *'unrecognized option'* ]]; then
+    die "'$badarg' is an unknown option."
+
+  else
+    die "Unexpected error from getopt: $badopt"
+  fi
+}
+
+#----------------------------------------------------------------------------
+: << POD
 =head2 _check_type
 
 =over
@@ -319,7 +359,7 @@ POD
 
 # XXX: Should we be returning > 1 instead of dying here?
 
-function _check_type() {
+_check_type() {
   [[ $# -eq 2 ]] || die 'must pass type name and value to _check_type'
   [[ -z $1 ]] && die 'cannot pass empty type to _check_type'
 
@@ -365,38 +405,29 @@ POD
 
 # Sets SHORTOPTS and LONGOPTS to required values.
 
-function _normalize_definitions() {
+_normalize_definitions() {
   [[ -z $1 ]] && die 'No definitions were passed to _normalize_definitions.'
 
-  local OPTION VAR DEFAULT
-  local -l TYPE REQ
+  local OPTION VARNAME DEFAULT
+  local -l TYPE PARMTYPE
 
   IFS=$nl readarray -t def_lines <<< "$1"
 
   for BPI_IX in "${!def_lines[@]}"; do
     [[ -z ${def_lines[BPI_IX]} ]] && continue
 
-    line="${def_lines[BPI_IX]}"
-    errline="on definition line $BPI_IX ($line)"
-    debug "$errline"
+    local -a NEW_OPTIONS=()
+    local line="${def_lines[BPI_IX]}"
+    local errline="on definition line $BPI_IX ($line)"
 
     # The definition line is separated by commas
-    IFS=', ' read -r OPTION TYPE VAR DEFAULT REQ <<< "$line"
+    IFS=', ' read -r OPTION TYPE VARNAME DEFAULT PARMTYPE <<< "$line"
 
-    # The options can have one or more choices
-    IFS='|' read -ra OPTIONS <<< "$OPTION"
-
-    debug "OPTIONS: ${OPTIONS[*]}"
+    debug "OPTION: $OPTION"
     debug "TYPE: $TYPE"
-    debug "VAR: $VAR"
+    debug "VARNAME: $VARNAME"
     debug "DEFAULT: $DEFAULT"
-    debug "REQ: $REQ"
-
-    #------------------------------------------------------------------------
-    [[ -z $REQ ]] && REQ='optional'
-
-    [[ $REQ =~ required|optional ]] \
-      || die "Only 'required', 'optional' or null is valid $errline."
+    debug "PARMTYPE: $PARMTYPE"
 
     #------------------------------------------------------------------------
     # Default to string if not included
@@ -405,59 +436,104 @@ function _normalize_definitions() {
     [[ -n ${TYPES[$TYPE]} || -z ${TYPES[$TYPE]-foo} ]] \
       || die "Invalid type ($TYPE) $errline."
 
-    [[ $TYPE == 'boolean' ]] && REQ='optional'
+    [[ $TYPE == 'boolean' ]] && PARMTYPE='switch'
+
+    # XXX: Should we be checking if the type function is valid at this point?
+
+    #----------------------------------------------------------------------
+    # PARMTYPE can be 'switch', 'optional', or 'required'
+    #.
+    # switch: parameter that doesn't accept a value.  defined as 's' or
+    # 'longopt'
+    #.
+    # optional: parameter that accepts a value, but isn't required by the
+    # calling program.
+    #
+    # defined as 's:' or 'longopt:' this consumes the next value regardless if
+    # it starts with a dash.
+    #.
+    # required: parameter that accepts a value, and is required by the calling
+    # program.
+    #
+    # defined as 's:' or 'longopt:' this consumes the next value regardless if
+    # it starts with a dash.
+    #.
+    # ???: The double colon ('::') definition for getopt requires the value be
+    # immediately after the parameter (for a shortopt) or followed immediately
+    # by and equals sign ('=', for a longopt). I'm not sure how I would handle
+    # this, and I don't normally use this.  So, it's going to stay unhandled
+    # until I need it.
+
+    [[ -z $PARMTYPE ]] && PARMTYPE='optional'
+
+    [[ $PARMTYPE =~ switch|optional|required ]] \
+      || die "Only 'switch', 'optional', 'required' or null is valid $errline."
+
+    local PARMTYPE_CHAR=':'
+    [[ $PARMTYPE == 'switch' ]] && PARMTYPE_CHAR=
 
     #------------------------------------------------------------------------
-    [[ $OPTION == *$POS_DEF* ]] && [[ ${#OPTIONS[@]} -gt 1 ]] \
+    [[ $OPTION == *$POS_DEF* && $OPTION == *'|'* ]] \
       && die "'$POS_DEF' must be the only option $errline."
 
     if [[ $OPTION == "$POS_DEF" ]]; then
-      # XXX: Include in docs the following
-      # DEFAULT and REQUIRED are silently ignored
-      [[ -z $VAR ]] && die "Variable name is required when using position $errline."
-      POS_LINES+=("$TYPE,$VAR")
-      continue
+      [[ -z $VARNAME ]] && die "Variable name is required when using position $errline."
+      POS_LINES+=("$TYPE,$VARNAME")
 
     else
+      # The options can have one or more choices
+      IFS='|' read -ra OPTIONS <<< "$OPTION"
+
       # Default variable name to last option if not included.
-      [[ -z $VAR ]] && VAR="${OPTIONS[-1]}"
-      _valid_varname "$VAR" \
-        || die "Invalid variable name ($VAR) $errline."
+      [[ -z $VARNAME ]] && VARNAME="${OPTIONS[-1]}"
+
+      _valid_varname "$VARNAME" \
+        || die "Invalid variable name ($VARNAME) $errline."
+
+      #----------------------------------------------------------------------
+      for opt in "${OPTIONS[@]}"; do
+        if [[ $opt =~ ^[[:alnum:]]$ ]]; then
+          [[ $SHORTOPTS == *"$opt"* ]] && die "Repeated short option ($opt) $errline."
+          SHORTOPTS+="$opt$PARMTYPE_CHAR"
+          NEW_OPTIONS+=("-$opt")
+
+        elif [[ $opt =~ ^[[:alnum:]]+$ ]]; then
+          [[ $LONGOPTS == *"$opt"* ]] && die "Repeated long option ($opt) $errline."
+          LONGOPTS+="$opt$PARMTYPE_CHAR,"
+          NEW_OPTIONS+=("--$opt")
+
+        else
+          die "Invalid option ($opt) $errline."
+        fi
+      done
+
+      #----------------------------------------------------------------------
+      local NEW_OPTION=
+      NEW_OPTION="$(join_array ' | ' 'NEW_OPTIONS')"
+
+      [[ $PARMTYPE == 'required' ]] \
+        && REQUIRED_CHECKS+="[[ -n \$$VARNAME ]] || { warn '$NEW_OPTION is required.'; ((ERR++)); }$nl"
+
+      #----------------------------------------------------------------------
+      DEF_LINES+=$(printf '%s,' "$NEW_OPTION" "$TYPE" "$VARNAME")
+      DEF_LINES="${DEF_LINES%%,}"
+      DEF_LINES+=$nl
     fi
 
     #------------------------------------------------------------------------
     # If a default value is provided, does it pass the type check?
-    if [[ -n $DEFAULT ]]; then
+    if [[ -n $DEFAULT ]] && [[ $TYPE != 'boolena' ]]; then
       _check_type "$TYPE" "$DEFAULT" \
         || die "default value ($DEFAULT) does not pass type check $errline."
+
+      if [[ $TYPE == 'integer' ]]; then
+        DEFAULTS+="$VARNAME=$DEFAULT$nl"
+      else
+        DEFAULTS+="$VARNAME='$DEFAULT'$nl"
+      fi
     fi
 
-    #------------------------------------------------------------------------
-    # From getopt manpage: A short option "may be followed by one colon to
-    # indicate it has a required argument, and by two colons to indicate it
-    # has an optional argument". The same holds true for long options.
-
-    # We are currently not supporting an optional argument.
-
-    for opt in "${OPTIONS[@]}"; do
-      if [[ $opt =~ ^[[:alnum:]]$ ]]; then
-        [[ $SHORTOPTS == *"$opt"* ]] && die "Repeated short option ($opt) $errline."
-        SHORTOPTS+="$opt"
-        [[ $TYPE != 'boolean' ]] && SHORTOPTS+=':'
-
-      elif [[ $opt =~ ^[[:alnum:]]+$ ]]; then
-        [[ $LONGOPTS == *"$opt"* ]] && die "Repeated long option ($opt) $errline."
-        LONGOPTS+="$opt"
-        [[ $TYPE != 'boolean' ]] && LONGOPTS+=':,'
-
-      else
-        die "Invalid option ($opt) on line $BPI_IX."
-      fi
-    done
-
-    DEF_LINES+=$(printf '%s,' "$OPTION" "$TYPE" "$VAR" "$DEFAULT" "$REQ")
-    DEF_LINES="${DEF_LINES%%,}"
-    DEF_LINES+=$nl
+    [[ $TYPE == 'boolean' ]] && DEFAULTS+="$VARNAME=1$nl"
   done
 
   # Get rid of trailing ','
@@ -465,8 +541,10 @@ function _normalize_definitions() {
 
   debug "DEF_LINES: $DEF_LINES <"
   debug "POS_LINES: ${POS_LINES[*]} <"
-  debug "$(printf '%-15s - %-15s <' 'SHORTOPTS' 'LONGOPTS')"
-  debug "$(printf '%-15s - %-15s <' "$SHORTOPTS" "$LONGOPTS")"
+  debug "DEFAULTS: $DEFAULTS <"
+  debug "REQUIRED_CHECKS: $REQUIRED_CHECKS <"
+  debug "$(printf 'SHORTOPTS: %-15s <' "$SHORTOPTS")"
+  debug "$(printf 'LONGOPTS: %-15s <' "$LONGOPTS")"
 
   return 0
 }
@@ -486,13 +564,13 @@ called in C<parse_params>.
 =cut
 POD
 
-function _build_eval_string() {
+_build_eval_string() {
   if [[ -z $DEF_LINES ]] && [[ ${#POS_LINES[@]} -eq 0 ]]; then
     die "Either DEF_LINES or POS_LINES needs to be set."
   fi
 
-  local OPTION VAR DEFAULT DEFAULTS_STRING REQUIRED_STRING CASE_STRING
-  local -l TYPE REQ
+  local CASE_CHECKS DEFAULT OPTION VARNAME
+  local -l TYPE
 
   IFS=$nl readarray -t def_lines <<< "$DEF_LINES"
 
@@ -501,123 +579,90 @@ function _build_eval_string() {
 
     debug "line $BES_IX: $(printf '%s' "${def_lines[BES_IX]}")"
 
-    IFS=',' read -r OPTION TYPE VAR DEFAULT REQ <<< "${def_lines[BES_IX]}"
-    #debug "OPTION: $OPTION ::: TYPE: $TYPE ::: VAR: $VAR ::: DEFAULT: $DEFAULT ::: REQ: $REQ <"
+    IFS=',' read -r OPTION TYPE VARNAME <<< "${def_lines[BES_IX]}"
 
-    CASE_STRING+="$nl"
-
-    if [[ $OPTION =~ ^[[:alnum:]]$ ]]; then
-      CASE_STRING+="-$OPTION)$nl"
-    elif [[ $OPTION != *"|"* ]]; then
-      CASE_STRING+="--$OPTION)$nl"
-    else
-      CASE_STRING+="-${OPTION/|/ | \-\-})$nl"
-    fi
-
-    CASE_STRING+="debug \"case: $OPTION \$(printf '%s' \$2)\"$nl"
+    CASE_CHECKS+="$OPTION)${nl}debug \"Found $OPTION (\$1 \$2)\"$nl"
 
     if [[ $TYPE == 'boolean' ]]; then
-      CASE_STRING+="$VAR=0$nl"
-      CASE_STRING+="shift$nl"
-
-      DEFAULT=1
+      CASE_CHECKS+="$VARNAME=0${nl}shift$nl"
     else
-      CASE_STRING+="$VAR=\"\$2\"$nl"
-      CASE_STRING+="shift 2$nl"
-
-      VALIDATE_STRING+="_check_type '$TYPE' '$VAR' || { warn \"$OPTION (\$$VAR) is not a $TYPE.\"; ((ERR++)); }$nl"
+      CASE_CHECKS+="$VARNAME=\"\$2\"${nl}shift 2$nl"
+      CASE_CHECKS+="_check_type '$TYPE' \"\$$VARNAME\" || { warn \"$OPTION '\$$VARNAME' is not a $TYPE.\"; ((ERR++)); }$nl"
     fi
 
-    CASE_STRING+=";;$nl"
-
-    if [[ -n $DEFAULT ]]; then
-      DEFAULTS_STRING+="$VAR='$DEFAULT'$nl"
-    fi
-
-    if [[ $REQ == 'required' ]]; then
-      REQUIRED_STRING+="[[ -n \$$VAR ]] || { warn '$VAR ($OPTION) is required.'; ((ERR++)); }$nl"
-    fi
-
-    DEBUG_STRING+="debug \"(after case) $VAR: \$$VAR\"$nl"
-
+    CASE_CHECKS+=";;$nl$nl"
   done
 
-  if [[ -n $CASE_STRING ]]; then
-    CASE_STRING="  local gopts=\"--alternative\"
-  [[ -n \$SHORTOPTS ]] && gopts+=\"\$gopts --options \$SHORTOPTS\"
-  [[ -n \$LONGOPTS ]] && gopts+=\"\$gopts --longoptions \$LONGOPTS\"
+  local POS_CHECKS="*) : ;;"
 
-  debug \"gopts: \$gopts\"
+  if [[ ${#POS_LINES[@]} -gt 0 ]]; then
+    POS_CHECKS="*)
+        IFS=',' read -r TYPE VARNAME <<< \"\${POS_LINES[ARGS_IX]}\"
+        IFS= read -r \"\$VARNAME\" <<< \"\$1\"
+        shift
+        _check_type \"\$TYPE\" \"\$VARNAME\" || { warn \"'\${!VARNAME}' (position \$ARGS_IX) is not a \$TYPE.\"; ((ERR++)); }
+        ;;"
+  fi
 
-  ARGS=\"\$(getopt \$gopts -- \"\$@\")\" || {
+  local gopts=
 
-    # From man page for getopt:
-    # getopt returns error code 0 for successful parsing, 1 if getopt(3) returns
-    # errors, 2 if it does not understand its own parameters, 3 if an internal
-    # error occurs like out-of-memory, and 4 if it is called with -T.
+  # See BUGS section of getopt manpage. --options is required, even if it's ''.
+  gopts+=" --options '$SHORTOPTS'"
+  [[ -n $LONGOPTS ]] && gopts+=" --alternative --longoptions '$LONGOPTS'"
 
+  [[ -n $DEFAULTS ]] && DEFAULTS="$nl# -- Begin defaults --${nl}debug 'Setting defaults ...'$nl$DEFAULTS# -- End defaults --$nl$nl"
+  [[ -n $REQUIRED_CHECKS ]] && REQUIRED_CHECKS="#-- Begin required checks --${nl}debug 'Checking for required options ...'$nl$REQUIRED_CHECKS#-- End required checks --$nl$nl"
+
+  local EVAL_STRING="_parse_params() {
+  ((\$#)) || die 'no parms to check'
+$DEFAULTS
+  [[ \"\$*\" == '' ]] && return 0
+
+  debug \"getopt $gopts --\"
+  debug \"@: \$*\"
+
+  local -i rc=0
+  local ARGS
+
+  ARGS=\"\$(getopt $gopts -- \"\$@\" 2>&1)\" || {
     rc=\$?
-
     ((rc==4)) && die \"Don't call getopt with '-T'.\"
     ((rc==3)) && die \"getopt internal error.\"
     ((rc==2)) && die \"Unrecognized parameters used with getopt.\"
   }
 
-  debug \"ARGS: \$(printf '%s' \"\$ARGS\")\"
+  debug \"rc: \$rc\"
+  debug \"ARGS: \$ARGS <\"
+  ((rc)) && _badopt \"\$ARGS\"
 
   eval set -- \"\$ARGS\"
 
-  while true; do
-    #debug \"1: \$1 ::: 2: \$2\"
+  local ERR=0
+  local ARGS_IX=0
+
+  while ((\$#)); do
+    debug \"1: '\$1' (\$#)\"
 
     case \"\$1\" in
-$CASE_STRING
-      --)
-        debug 'case: --'
+$CASE_CHECKS--)
         shift
         break
         ;;
 
-      *)
-        debug 'case: *'
-        break ;;
+      $POS_CHECKS
     esac
+
+    ((ARGS_IX++))
+    [[ \$ARGS_IX -gt \$# ]] && die 'too many attempts to parse arguments'
   done
-"
-  fi
 
-  # This eval will execute arbitrary code from the command line. Don't use it!
-  #[[ -n \$1 ]] && eval \"\$VAR=\$1\"
+$REQUIRED_CHECKS
 
-  if [[ ${#POS_LINES[@]} -gt 0 ]]; then
-    POS_STRING="
-  for PL_IX in \"\${!POS_LINES[@]}\"; do
-    IFS=',' read -r TYPE VAR <<< \"\${POS_LINES[PL_IX]}\"
-    [[ -n \$1 ]] && IFS= read -r \"\$VAR\" <<< \"\$1\"
-    debug \"(in pos loop) \$VAR: \${!VAR}\"
-    _check_type \"\$TYPE\" \"\$VAR\" || { warn \"'\${!VAR}' (position \$PL_IX) is not a \$TYPE\"; ((ERR++)); }
-    shift
-  done
-"
-  fi
-
-  local EVAL_STRING="
-_parse_params() {
-$DEFAULTS_STRING
-$CASE_STRING
-$POS_STRING
-$DEBUG_STRING
-$REQUIRED_STRING
-$VALIDATE_STRING
-
-  debug \"ERR: \$ERR\"
-  ((ERR)) && return 1
-  return 0
+  return \$ERR
 }
 "
 
-  debug "$(echo "$EVAL_STRING" | shfmt -s -i 2 -bn -ci -sr)"
+  is_executable shfmt && EVAL_STRING="$(echo "$EVAL_STRING" | shfmt -s -i 2 -bn -ci -sr)"
+  debug "$EVAL_STRING"
   printf '%s' "$EVAL_STRING"
 }
-
-return 0

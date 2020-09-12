@@ -23,8 +23,11 @@ checkit() {
   success=0
   myexpected 'DEF_LINES' "$expected_def_lines" "$DEF_LINES"      || success=1
   myexpected 'POS_LINES' "$expected_pos_lines" "${POS_LINES[*]}" || success=1
-  myexpected 'SHORTOPTS' "$expected_shortopts" "$SHORTOPTS"      || success=1
+  myexpected 'DEFAULTS'  "$expected_defaults"  "$DEFAULTS"       || success=1
   myexpected 'LONGOPTS'  "$expected_longopts"  "$LONGOPTS"       || success=1
+  myexpected 'SHORTOPTS' "$expected_shortopts" "$SHORTOPTS"      || success=1
+
+  myexpected 'REQUIRED_CHECKS' "$expected_required_checks" "$REQUIRED_CHECKS" || success=1
   return $success
 }
 
@@ -55,7 +58,7 @@ checkit() {
   shortopt="$(random_string 'alpha' 1)"
   badrequire="$(random_string)"
   defline="$shortopt,,,,$badrequire"
-  expected_out="Only 'required', 'optional' or null is valid on definition line 0 ($defline)."
+  expected_out="Only 'switch', 'optional', 'required' or null is valid on definition line 0 ($defline)."
   run _normalize_definitions "$defline"
   assert_failure
   assert_output "$expected_out"
@@ -178,10 +181,12 @@ checkit() {
   shortopt="$(random_string 'alpha' 1)"
   defline="$shortopt"
 
-  expected_def_lines="$shortopt,string,$shortopt,,optional$nl"
+  expected_def_lines="-$shortopt,string,$shortopt$nl"
   expected_pos_lines=''
+  expected_defaults=''
   expected_shortopts="$shortopt:"
   expected_longopts=''
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -195,10 +200,12 @@ checkit() {
   longopt="$(random_string 'alpha' 8)"
   defline="$longopt"
 
-  expected_def_lines="$longopt,string,$longopt,,optional$nl"
+  expected_def_lines="--$longopt,string,$longopt$nl"
   expected_pos_lines=''
+  expected_defaults=''
   expected_shortopts=''
   expected_longopts="$longopt:"
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -213,10 +220,12 @@ checkit() {
   longopt="$(random_string 'alpha' 8)"
   defline="$shortopt|$longopt"
 
-  expected_def_lines="$defline,string,$longopt,,optional$nl"
+  expected_def_lines="-$shortopt | --$longopt,string,$longopt$nl"
   expected_pos_lines=''
+  expected_defaults=''
   expected_shortopts="$shortopt:"
   expected_longopts="$longopt:"
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -232,8 +241,10 @@ checkit() {
 
   expected_def_lines=''
   expected_pos_lines="string,$varname"
+  expected_defaults=''
   expected_shortopts=''
   expected_longopts=''
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -249,8 +260,10 @@ checkit() {
 
   expected_def_lines=''
   expected_pos_lines="string,$varname"
+  expected_defaults=''
   expected_shortopts=''
   expected_longopts=''
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -265,10 +278,12 @@ checkit() {
   checktype='boolean'
   defline="$shortopt,$checktype"
 
-  expected_def_lines="$shortopt,$checktype,$shortopt,,optional$nl"
+  expected_def_lines="-$shortopt,$checktype,$shortopt$nl"
   expected_pos_lines=''
+  expected_defaults="$shortopt=1$nl"
   expected_shortopts="$shortopt"
   expected_longopts=''
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -283,10 +298,12 @@ checkit() {
   checktype='boolean'
   defline="$shortopt,$checktype,,,required"
 
-  expected_def_lines="$shortopt,$checktype,$shortopt,,optional$nl"
+  expected_def_lines="-$shortopt,$checktype,$shortopt$nl"
   expected_pos_lines=''
+  expected_defaults="$shortopt=1$nl"
   expected_shortopts="$shortopt"
   expected_longopts=''
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -300,10 +317,12 @@ checkit() {
   shortopt="$(random_string 'alpha' 1)"
   defline="$shortopt,,,,required"
 
-  expected_def_lines="$shortopt,string,$shortopt,,required$nl"
+  expected_def_lines="-$shortopt,string,$shortopt$nl"
   expected_pos_lines=''
+  expected_defaults=''
   expected_shortopts="$shortopt:"
   expected_longopts=''
+  expected_required_checks="[[ -n \$$shortopt ]] || { warn '-$shortopt is required.'; ((ERR++)); }$nl"
 
   _normalize_definitions "$defline"
 
@@ -317,10 +336,12 @@ checkit() {
   longopt="$(random_string 'alpha' 1)$(random_string 8)"
   defline="$longopt,,,,required"
 
-  expected_def_lines="$longopt,string,$longopt,,required$nl"
+  expected_def_lines="--$longopt,string,$longopt$nl"
   expected_pos_lines=''
+  expected_defaults=''
   expected_shortopts=''
   expected_longopts="$longopt:"
+  expected_required_checks="[[ -n \$$longopt ]] || { warn '--$longopt is required.'; ((ERR++)); }$nl"
 
   _normalize_definitions "$defline"
 
@@ -335,10 +356,12 @@ checkit() {
   longopt="$(random_string 'alpha' 1)$(random_string 8)"
   defline="$shortopt|$longopt,,,,required"
 
-  expected_def_lines="$shortopt|$longopt,string,$longopt,,required$nl"
+  expected_def_lines="-$shortopt | --$longopt,string,$longopt$nl"
   expected_pos_lines=''
+  expected_defaults=''
   expected_shortopts="$shortopt:"
   expected_longopts="$longopt:"
+  expected_required_checks="[[ -n \$$longopt ]] || { warn '-$shortopt | --$longopt is required.'; ((ERR++)); }$nl"
 
   _normalize_definitions "$defline"
 
@@ -353,10 +376,12 @@ checkit() {
   default="$(random_string)"
   defline="$shortopt,,,$default"
 
-  expected_def_lines="$shortopt,string,$shortopt,$default,optional$nl"
+  expected_def_lines="-$shortopt,string,$shortopt$nl"
   expected_pos_lines=''
+  expected_defaults="$shortopt='$default'$nl"
   expected_shortopts="$shortopt:"
   expected_longopts=''
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -371,10 +396,12 @@ checkit() {
   default="$(random_string)"
   defline="$longopt,,,$default"
 
-  expected_def_lines="$longopt,string,$longopt,$default,optional$nl"
+  expected_def_lines="--$longopt,string,$longopt$nl"
   expected_pos_lines=''
+  expected_defaults="$longopt='$default'$nl"
   expected_shortopts=''
   expected_longopts="$longopt:"
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -390,10 +417,12 @@ checkit() {
   default="$(random_string)"
   defline="$shortopt|$longopt,,,$default"
 
-  expected_def_lines="$shortopt|$longopt,string,$longopt,$default,optional$nl"
+  expected_def_lines="-$shortopt | --$longopt,string,$longopt$nl"
   expected_pos_lines=''
+  expected_defaults="$longopt='$default'$nl"
   expected_shortopts="$shortopt:"
   expected_longopts="$longopt:"
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -409,10 +438,12 @@ checkit() {
   varname="$(random_string 'alpha' 1)$(random_string 8)"
   defline="$shortopt,$checktype,$varname"
 
-  expected_def_lines="$shortopt,$checktype,$varname,,optional$nl"
+  expected_def_lines="-$shortopt,$checktype,$varname$nl"
   expected_pos_lines=''
+  expected_defaults=''
   expected_shortopts="$shortopt:"
   expected_longopts=''
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -428,10 +459,12 @@ checkit() {
   varname="$(random_string 'alpha' 1)$(random_string 8)"
   defline="$longopt,$checktype,$varname"
 
-  expected_def_lines="$longopt,$checktype,$varname,,optional$nl"
+  expected_def_lines="--$longopt,$checktype,$varname$nl"
   expected_pos_lines=''
+  expected_defaults=''
   expected_shortopts=''
   expected_longopts="$longopt:"
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
@@ -448,10 +481,12 @@ checkit() {
   varname="$(random_string 'alpha' 1)$(random_string 8)"
   defline="$shortopt|$longopt,$checktype,$varname"
 
-  expected_def_lines="$shortopt|$longopt,$checktype,$varname,,optional$nl"
+  expected_def_lines="-$shortopt | --$longopt,$checktype,$varname$nl"
   expected_pos_lines=''
+  expected_defaults=''
   expected_shortopts="$shortopt:"
   expected_longopts="$longopt:"
+  expected_required_checks=''
 
   _normalize_definitions "$defline"
 
