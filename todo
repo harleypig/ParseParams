@@ -1,23 +1,23 @@
 Support the following:
 
-[x] Short option '-s'
-[ ] Combined short option '-av' (I think getopt already does this)
+[ ] allow for passed in message, custom placement (top, bottom or both)
+[ ] allow for prefix and postfix text in help output
+[ ] automatic help generation
+[ ] must specifically enable help switch and/or choose what help switch is
+[x] allow for positional parameters
+[x] Combined short option '-av'
+[x] leave unparsed parameters in $REMAINDER array
 [x] Long option '--long'
-[x] -- stops processing parameters
 [x] mix switches and arguments (-s argument --another)
 [x] option types (boolean, char, integer, etc.)
+[x] Short option '-s'
+[x] -- stops processing parameters
 [x] type validation
-[ ] automatic help generation
-[ ] allow for prefix and postfix text in help output
-[ ] must specifically enable help switch and/or choose what help switch is
-[ ] allow for passed in message, custom placement (top, bottom or both)
-[x] allow for positional parameters
 
 Maybe?
 
 [ ] -h shows short help, --help shows long
 [ ] allow --{no-}option (e.g., --option or --no-option)
-[ ] leave unparsed parameters in $@
 
 ------------------------------------------------------------------------------
 General format of a help screen:
